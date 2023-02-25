@@ -1,5 +1,6 @@
 from chess_api import get_pgns
 from game_analysis import parse_pgn, filter_games, find_blunders, BlunderParams, BlunderPosition
+import io
 
 # blunder_params object structure: game type, player col, move range, won game
 # more difficult to implement: missed mate (in 2/3/x), severity of blunder, time taken to blunder

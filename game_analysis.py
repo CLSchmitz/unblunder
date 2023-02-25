@@ -1,5 +1,7 @@
+import chess
 import chess.pgn
 import chess.engine
+import subprocess
 import io
 
 def quickstart():
@@ -45,22 +47,55 @@ def filter_games():
     '''
     pass
 
-def find_blunders(pgn):
-    '''
-    Takes in a python-chess game object and returns the positions in which blunders occurred
-    '''
 
+
+def find_blunders(game, engine = None, player_color=None):
+    
+    if engine == None: engine = start_engine()
+    #player_color white = True
+
+    # Load the PGN into a chess.pgn object
+    #pgn = chess.pgn.read_game(chess.io.StringIO(pgn))
+
+    # Initialize the list of blunders and the board
     blunders = []
-    # get player color
+    board = chess.Board()
+    eval = get_evaluation(engine, board)
 
-    # for move in player color moves
-        # get current position
-        # get next position
-        # find difference in eval
-        # decide if blunder
-        # if so: add to list of blunders
+    # Iterate through each move in the game
+    for move in game.mainline_moves():
+        
+        # # If a player color is specified, skip moves that were not made by that player
+        # if player_color is not None and board.turn != player_color:
+        #     continue
+        print('Eval: ' + str(eval))
+        print('Move: ' + str(move))
 
+        current_fen = board.fen()
+        # Make the move on the board
+        board.push(move)
 
-    return blunder_positions
+        # Get the evaluation of the new position from Stockfish
+        new_eval = get_evaluation(engine, board)
 
-def evaluate_move
+        # If the move was made by white and the evaluation has decreased by 3 points or more, consider it a blunder
+        if board.turn == chess.BLACK and eval - new_eval >= 300:
+            
+            blunders.append({'board': current_fen,
+                             'move_played': move})
+        # If the move was made by black and the evaluation has increased by 3 points or more, consider it a blunder
+        elif board.turn == chess.WHITE and new_eval - eval >= 300:
+            blunders.append({'board': current_fen,
+                             'move_played': move})
+
+        eval = new_eval
+
+    return blunders
+
+def get_evaluation(engine, board, limit_time = 0.3):
+
+    return engine.analyse(board, chess.engine.Limit(time=limit_time))['score'].white().score(mate_score = 10000)
+
+def start_engine(engine_name = 'stockfish-windows-2022-x86-64-avx2.exe'):
+
+    return chess.engine.SimpleEngine.popen_uci('stockfish-windows-2022-x86-64-avx2.exe')
