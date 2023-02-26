@@ -27,7 +27,7 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
             all_pgns.extend(pgns)
 
     if limit is not None and len(all_pgns) > limit:
-        all_pgns = all_pgns[limit:]
+        all_pgns = all_pgns[:limit]
 
     return all_pgns
 

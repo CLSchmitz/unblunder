@@ -28,15 +28,20 @@ class Blunder:
                  fen, 
                  move_played, 
                  best_move, 
+                 fen_after = None,
                  color_to_move = None,
                  eval_change = 0) -> None:
 
         self.fen = fen
+        self.fen_after = fen_after
         self.move_played = move_played
         self.best_move = best_move
         self.color_to_move = color_to_move
         self.eval_change = eval_change
-        # TODO severity, ...
+    
+    def get_fen_after(self):
+        #TODO push move on board to grab updated fen
+        pass
 
 
 def parse_pgn(pgn_txt):
@@ -76,23 +81,24 @@ def find_blunders(game, engine = None, player_color=None):
         # # If a player color is specified, skip moves that were not made by that player
         # if player_color is not None and board.turn != player_color:
         #     continue
-        print('Eval: ' + str(eval))
-        print('Move: ' + str(move))
 
         current_fen = board.fen()
         # Make the move on the board
         board.push(move)
 
+        new_fen = board.fen()
+
         # Get the evaluation of the new position from Stockfish
         # TODO if player colour return best move
-        new_eval, best_move = get_evaluation(engine, board)
+        new_eval, new_best_move = get_evaluation(engine, board)
 
         eval_change = new_eval - eval
 
         # If the move was made by white and the evaluation has decreased by 3 points or more, consider it a blunder
         if board.turn == chess.BLACK and eval_change <= -300 and player_color is not False:
             
-            b = Blunder(fen = current_fen,
+            b = Blunder(fen=current_fen,
+                        fen_after=new_fen,
                         move_played=move,
                         best_move=best_move,
                         color_to_move=chess.WHITE,
@@ -103,6 +109,7 @@ def find_blunders(game, engine = None, player_color=None):
         elif board.turn == chess.WHITE and eval_change >= 300 and player_color is not True:
             
             b = Blunder(fen = current_fen,
+                        fen_after=new_fen,
                         move_played=move,
                         best_move=best_move,
                         color_to_move=chess.BLACK,
@@ -110,6 +117,7 @@ def find_blunders(game, engine = None, player_color=None):
             blunders.append(b)
 
         eval = new_eval
+        best_move = new_best_move
 
     return blunders
 
