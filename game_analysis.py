@@ -19,16 +19,23 @@ class BlunderParams:
     def __init__(self) -> None:
         pass
 
-class BlunderPosition:
+class Blunder:
     '''
     This class encodes all information about a position in which a blunder occured
     '''
 
-    def __init__(self, tcn, color_to_move, move_played, best_moves) -> None:
-        self.tcn = tcn
-        self.color_to_move = color_to_move
+    def __init__(self, 
+                 fen, 
+                 move_played, 
+                 best_move, 
+                 color_to_move = None,
+                 eval_change = 0) -> None:
+
+        self.fen = fen
         self.move_played = move_played
-        self.best_moves = best_moves
+        self.best_move = best_move
+        self.color_to_move = color_to_move
+        self.eval_change = eval_change
         # TODO severity, ...
 
 
@@ -50,9 +57,10 @@ def filter_games():
 
 
 def find_blunders(game, engine = None, player_color=None):
-    
-    if engine == None: engine = start_engine()
     #player_color white = True
+
+    if engine == None: engine = start_engine()
+    
 
     # Load the PGN into a chess.pgn object
     #pgn = chess.pgn.read_game(chess.io.StringIO(pgn))
@@ -60,7 +68,7 @@ def find_blunders(game, engine = None, player_color=None):
     # Initialize the list of blunders and the board
     blunders = []
     board = chess.Board()
-    eval = get_evaluation(engine, board)
+    eval, best_move = get_evaluation(engine, board)
 
     # Iterate through each move in the game
     for move in game.mainline_moves():
@@ -76,23 +84,44 @@ def find_blunders(game, engine = None, player_color=None):
         board.push(move)
 
         # Get the evaluation of the new position from Stockfish
-        new_eval = get_evaluation(engine, board)
+        # TODO if player colour return best move
+        new_eval, best_move = get_evaluation(engine, board)
+
+        eval_change = new_eval - eval
 
         # If the move was made by white and the evaluation has decreased by 3 points or more, consider it a blunder
-        if board.turn == chess.BLACK and eval - new_eval >= 300:
+        if board.turn == chess.BLACK and eval_change <= -300 and player_color is not False:
             
-            blunders.append({'board': current_fen,
-                             'move_played': move})
+            b = Blunder(fen = current_fen,
+                        move_played=move,
+                        best_move=best_move,
+                        color_to_move=chess.WHITE,
+                        eval_change=eval_change)
+            blunders.append(b)
+            
         # If the move was made by black and the evaluation has increased by 3 points or more, consider it a blunder
-        elif board.turn == chess.WHITE and new_eval - eval >= 300:
-            blunders.append({'board': current_fen,
-                             'move_played': move})
+        elif board.turn == chess.WHITE and eval_change >= 300 and player_color is not True:
+            
+            b = Blunder(fen = current_fen,
+                        move_played=move,
+                        best_move=best_move,
+                        color_to_move=chess.BLACK,
+                        eval_change=eval_change)
+            blunders.append(b)
 
         eval = new_eval
 
     return blunders
 
-def get_evaluation(engine, board, limit_time = 0.3):
+def get_evaluation(engine, board, limit_time = 0.3, return_best_move = True):
+
+    if return_best_move:
+        best_move = None
+        eval = engine.analyse(board, chess.engine.Limit(time=limit_time))
+        score = eval['score'].white().score(mate_score = 10000)
+        if 'pv' in eval.keys(): best_move = eval['pv'][0]
+
+        return (score, best_move)
 
     return engine.analyse(board, chess.engine.Limit(time=limit_time))['score'].white().score(mate_score = 10000)
 

@@ -20,11 +20,11 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
     all_pgns = []
 
     for link in archive_list:
-        games = requests.get(link).json()['games']
-        pgns = [x['pgn'] for x in games if 'pgn' in x.keys()]
-        all_pgns.extend(pgns)
 
-
+        if len(all_pgns) < limit:
+            games = requests.get(link).json()['games']
+            pgns = [x['pgn'] for x in games if 'pgn' in x.keys()]
+            all_pgns.extend(pgns)
 
     if limit is not None and len(all_pgns) > limit:
         all_pgns = all_pgns[limit:]
