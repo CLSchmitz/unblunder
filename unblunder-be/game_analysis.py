@@ -145,6 +145,6 @@ def get_evaluation(board, engine, limit_time = 0.3, return_best_move = True):
 
     return engine.analyse(board, chess.engine.Limit(time=limit_time))['score'].white().score(mate_score = 10000)
 
-def start_engine(engine_name = 'stockfish-windows-2022-x86-64-avx2.exe'):
+def start_engine(engine_name = 'stockfish-windows-x86-64-avx2'):
 
-    return chess.engine.SimpleEngine.popen_uci('stockfish-windows-2022-x86-64-avx2.exe')
+    return chess.engine.SimpleEngine.popen_uci(engine_name)

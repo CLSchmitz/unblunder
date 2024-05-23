@@ -8,11 +8,16 @@ body {
     background-color: #f0f0f0;
 }
 
-#board {
+#myBoard {
     margin-bottom: 20px;
 }
 
 button {
     padding: 10px 20px;
     font-size: 16px;
+    margin-bottom: 20px;
+}
+
+#status, #fen, #pgn {
+    margin-top: 10px;
 }
