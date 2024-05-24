@@ -52,10 +52,8 @@ def quickstart():
 def fake_load_positions(username):
     # Simulate a long-running task
 
-    print('started')
-
     fens = {
-    1: 'K6k/4P3/3PP3/2P1P3/4P3/4P3/2PPPPP1/8 w - - 0 1',
+    1: 'K6k/4P3/3PP3/4P3/4P3/2PPPP2/8/8 w - - 0 1',
     2: 'K6k/3PP3/2P2P2/4P3/3P4/2PPPP2/8/8 w - - 0 1',
     3: 'K6k/2PPP3/5P2/3PP3/5P2/2PPP3/8/8 w - - 0 1'
     }
@@ -67,9 +65,6 @@ def fake_load_positions(username):
             'blunder_move': 'a8b8'
         } for x in fens.values()
     ]
-
-    print(positions)
-    #time.sleep(5)
     
     # Store positions in Redis
     r.set(username, json.dumps(positions))
@@ -131,17 +126,14 @@ def start_loading():
     data = request.json 
     username = data['username']
 
-    print('here at least')
     fake_load_positions.delay(username)
     return jsonify({"message": "Loading started"}), 202
 
 @app.route('/get_position', methods=['GET'])
 def get_position():
     username = request.args.get('username')
-    print(username)
     positions = json.loads(r.get(username))
 
-    print(positions)
     if positions:
         position = positions.pop(0)  # Get the first position
         r.set(username, json.dumps(positions))  # Save remaining positions
