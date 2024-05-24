@@ -13,27 +13,65 @@ var $moveFeedback = $('#moveFeedback');
 var bestMove = null;
 var blunderMove = null;
 
+function startLoadingPositions(username) {
+  $.ajax({
+      url: 'http://127.0.0.1:5000/start_loading', // Start the long-running task
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ username: username }),
+      success: function(response) {
+          console.log(response.message);
+      },
+      error: function(error) {
+          console.error('Error starting loading:', error);
+      }
+  });
+}
+
 function loadPosition() {
   var username = document.getElementById('username').value;
   $.ajax({
-    url: 'http://127.0.0.1:5000/hello_world',
-    method: 'POST',
-    contentType: 'application/json',
-    data: JSON.stringify({ username: username }),
-    success: function(response) {
-        // Assuming the API returns a FEN string in the "fen" field
-        var fen = response.fen;
-        board.position(fen);
-        bestMove = response.best_move;
-        blunderMove = response.blunder_move;
-        game.load(fen);  // Update the game state
-        updateStatus();  // Update the status display
-    },
-    error: function(error) {
-        console.error('Error fetching position:', error);
-    }
+      url: `http://127.0.0.1:5000/get_position?username=${username}`, // Get a position
+      method: 'GET',
+      success: function(response) {
+          if (response.fen) {
+              var fen = response.fen;
+              board.position(fen);
+              bestMove = response.best_move;
+              blunderMove = response.blunder_move;
+              game.load(fen);  // Update the game state
+              updateStatusFn();  // Update the status display
+          } else {
+              console.log(response.message);
+          }
+      },
+      error: function(error) {
+          console.error('Error fetching position:', error);
+      }
   });
 }
+
+// function loadPosition() {
+//   var username = document.getElementById('username').value;
+//   $.ajax({
+//     url: 'http://127.0.0.1:5000/hello_world',
+//     method: 'POST',
+//     contentType: 'application/json',
+//     data: JSON.stringify({ username: username }),
+//     success: function(response) {
+//         // Assuming the API returns a FEN string in the "fen" field
+//         var fen = response.fen;
+//         board.position(fen);
+//         bestMove = response.best_move;
+//         blunderMove = response.blunder_move;
+//         game.load(fen);  // Update the game state
+//         updateStatus();  // Update the status display
+//     },
+//     error: function(error) {
+//         console.error('Error fetching position:', error);
+//     }
+//   });
+// }
 
 function onDrop(game, updateStatus) {
   return function(source, target) {
@@ -99,11 +137,20 @@ function updateStatus () {
   $pgn.html(game.pgn())
 }
 
-// Attach event listener to the button
+// Attach event listener to the submit button
 document.getElementById('submitUsername').addEventListener('click', function() {
   var username = document.getElementById('username').value;
-  loadPosition(username);
+  startLoadingPositions(username);
 });
+
+// Attach event listener to the load position button
+document.getElementById('loadPosition').addEventListener('click', loadPosition);
+
+// // Attach event listener to the button
+// document.getElementById('submitUsername').addEventListener('click', function() {
+//   var username = document.getElementById('username').value;
+//   loadPosition(username);
+// });
 
 var config = {
   draggable: true,
