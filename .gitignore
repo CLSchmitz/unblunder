@@ -1,3 +1,4 @@
 stockfish-*.exe
 /src
 /stockfish
+ts.js

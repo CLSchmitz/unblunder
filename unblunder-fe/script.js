@@ -1,4 +1,5 @@
 import { Chess } from '/node_modules/chess.js/dist/esm/chess.js'
+import { onDragStart, onDrop, onSnapEnd, updateStatus } from './chessEvents.js'
 
 var board = null
 var game = new Chess()
@@ -6,78 +7,44 @@ var $status = $('#status')
 var $fen = $('#fen')
 var $pgn = $('#pgn')
 
-function onDragStart (source, piece, position, orientation) {
-  // do not pick up pieces if the game is over
-  if (game.isGameOver()) return false
+const updateStatusFn = updateStatus(game, $status, $fen, $pgn);
 
-  // only pick up pieces for the side to move
-  if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-      (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-    return false
-  }
+function loadPosition() {
+  $.ajax({
+    url: 'https://api.chess.com/pub/puzzle/random', // Example API endpoint
+    method: 'GET',
+    // contentType: 'application/json',
+    // data: JSON.stringify({ player_id: username }),
+      success: function(response) {
+          // Assuming the API returns a FEN string in the "fen" field
+          var fen = response.fen;
+          board.position(fen);
+          game.load(fen);  // Update the game state
+          updateStatusFn();  // Update the status display
+      },
+      error: function(error) {
+          console.error('Error fetching position:', error);
+      }
+  });
 }
 
-function onDrop (source, target) {
-  // see if the move is legal
-  var move = game.move({
-    from: source,
-    to: target,
-    promotion: 'q' // NOTE: always promote to a queen for example simplicity
-  })
+// Attach event listener to the button
+document.getElementById('loadPosition').addEventListener('click', loadPosition);
 
-  // illegal move
-  if (move === null) return 'snapback'
-
-  updateStatus()
-}
-
-// update the board position after the piece snap
-// for castling, en passant, pawn promotion
-function onSnapEnd () {
-  board.position(game.fen())
-}
-
-function updateStatus () {
-  var status = ''
-
-  var moveColor = 'White'
-  if (game.turn() === 'b') {
-    moveColor = 'Black'
-  }
-
-  // checkmate?
-  if (game.isCheckmate()) {
-    status = 'Game over, ' + moveColor + ' is in checkmate.'
-  }
-
-  // draw?
-  else if (game.isDraw()) {
-    status = 'Game over, drawn position'
-  }
-
-  // game still on
-  else {
-    status = moveColor + ' to move'
-
-    // check?
-    if (game.isCheck()) {
-      status += ', ' + moveColor + ' is in check'
-    }
-  }
-
-  $status.html(status)
-  $fen.html(game.fen())
-  $pgn.html(game.pgn())
-}
+// document.getElementById('submitUsername').addEventListener('click', function() {
+//   var username = document.getElementById('username').value;
+//   loadPosition(username);
+// });
 
 var config = {
   draggable: true,
   position: 'start',
   pieceTheme: 'node_modules/@chrisoakman/chessboardjs/dist/img/chesspieces/wikipedia/{piece}.png',
-  onDragStart: onDragStart,
-  onDrop: onDrop,
-  onSnapEnd: onSnapEnd
+  onDragStart: onDragStart(game),
+  onDrop: onDrop(game, updateStatusFn),
+  onSnapEnd: function() { onSnapEnd(game, board)(); }
 }
+
 board = Chessboard('myBoard', config)
 
-updateStatus()
+updateStatusFn()
