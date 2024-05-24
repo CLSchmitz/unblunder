@@ -10,11 +10,14 @@ var $pgn = $('#pgn')
 const updateStatusFn = updateStatus(game, $status, $fen, $pgn);
 
 function loadPosition() {
+  var username = document.getElementById('username').value;
   $.ajax({
-    url: 'https://api.chess.com/pub/puzzle/random', // Example API endpoint
-    method: 'GET',
-    // contentType: 'application/json',
-    // data: JSON.stringify({ player_id: username }),
+    url: 'http://127.0.0.1:5000/hello_world',
+    //url: 'https://api.chess.com/pub/puzzle/random', // Example API endpoint
+    //method: 'GET',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify({ username: username }),
       success: function(response) {
           // Assuming the API returns a FEN string in the "fen" field
           var fen = response.fen;
@@ -29,12 +32,12 @@ function loadPosition() {
 }
 
 // Attach event listener to the button
-document.getElementById('loadPosition').addEventListener('click', loadPosition);
+//document.getElementById('loadPosition').addEventListener('click', loadPosition);
 
-// document.getElementById('submitUsername').addEventListener('click', function() {
-//   var username = document.getElementById('username').value;
-//   loadPosition(username);
-// });
+document.getElementById('submitUsername').addEventListener('click', function() {
+  var username = document.getElementById('username').value;
+  loadPosition(username);
+});
 
 var config = {
   draggable: true,

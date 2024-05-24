@@ -1,12 +1,16 @@
-from chess_api import get_pgns
-from game_analysis import parse_pgn, filter_games, find_blunders, Blunder
-import io
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from .chess_api import get_pgns
+from .game_analysis import parse_pgn, filter_games, find_blunders, Blunder
 import chess.svg
 from IPython.display import SVG, display
 
 # blunder_params object structure: game type, player col, move range, won game
 # more difficult to implement: missed mate (in 2/3/x), severity of blunder, time taken to blunder
 # very difficult to implement: some intelligent way of picking "worst" blunders
+
+app = Flask(__name__)
+cors = CORS(app)
 
 def quickstart():
 
@@ -48,6 +52,25 @@ def mock_frontend(blunder):
     board.push(blunder.move_played)
     display(chess.svg.board(board, size = 350))
 
+@app.route('/hello_world', methods = ['POST'])
+def hello_world():
+    
+    content = request.json
+
+    if content['username'] != 'da_chess_god':
+    
+        return {
+            'fen': 'r1b2rk1/pp1pbppp/8/1qp1N1P1/4Q2P/5K2/PP3P2/nNB4R b - - 4 15',
+            'best_move': 'd7d5',
+            'blunder_move': 'b5c6'
+        }, 200
+    
+    else:
+
+        return {
+            'message': 'We do not serve da_chess_god.'
+        }, 400
+
 #@app.route('/start_game')
 def start_game(): #args username; blunder params
 
@@ -71,3 +94,6 @@ def eval_user_move():
     # evaluate move made in position
     # return eval and best move
     pass
+
+if __name__ == '__main__':
+    app.run(debug=True)
