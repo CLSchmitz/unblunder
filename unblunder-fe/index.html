@@ -3,24 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Application</title>
+    <title>UNBLUNDER</title>
     <link rel="stylesheet" href="node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div>
-        <input type="text" id="username" placeholder="chess.com username">
-        <button id="submitUsername">Submit</button>
+    <div id="splash-overlay" class="overlay">
+        <div class="splash-content">
+            <h2>UNBLUNDER</h2>
+            <input type="text" id="username" placeholder="Enter your chess.com username">
+            <button id="submitUsername">Start</button>
+        </div>
     </div>
-    <div id="myBoard" style="width: 600px"></div>
-    <div id="moveFeedback"></div>
-    <label>Status:</label>
-    <div id="status"></div>
-    <label>FEN:</label>
-    <div id="fen"></div>
-    <label>PGN:</label>
-    <div id="pgn"></div>
-    <button id="loadPosition">Load Position</button>
+    
+    <div id="loading-overlay" class="overlay">
+        <div class="spinner"></div>
+    </div>
+    
+    <div class="main-container">
+        <div class="board-container">
+            <div id="myBoard"></div>
+        </div>
+        <div class="controls-container">
+            <div class="control-wrapper">
+                <h3>Game Info</h3>
+                <div id="status"></div>
+                <div id="moveFeedback"></div>
+            </div>
+            <div class="control-wrapper">
+                <h3>FEN</h3>
+                <div id="fen"></div>
+            </div>
+            <div class="control-wrapper">
+                <h3>PGN</h3>
+                <div id="pgn"></div>
+            </div>
+            <button id="loadPosition">Load Next Position</button>
+        </div>
+    </div>
 
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
     <script src="node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.js"></script>

@@ -1,5 +1,5 @@
 import { Chess } from '/node_modules/chess.js/dist/esm/chess.js'
-import { onDragStart, onSnapEnd,  } from './chessEvents.js'
+import { onDragStart, onSnapEnd } from './chessEvents.js'
 
 var board = null
 var game = new Chess()
@@ -8,68 +8,91 @@ var $fen = $('#fen')
 var $pgn = $('#pgn')
 var $moveFeedback = $('#moveFeedback');
 
-//const updateStatusFn = updateStatus(game, $status, $fen, $pgn);
-
 var bestMove = null;
 var blunderMove = null;
 
+// $(document).ready(function() {
+//   $('.main-container').hide(); // Hide the main content initially
+// });
+
 function startLoadingPositions(username) {
+  $('#splash-overlay').hide();
+  $('#loading-overlay').show();
   $.ajax({
-      url: 'http://127.0.0.1:5000/start_loading', // Start the long-running task
+      url: 'http://127.0.0.1:5000/start_loading',
       method: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({ username: username }),
       success: function(response) {
           console.log(response.message);
+          loadPosition(username);
       },
       error: function(error) {
           console.error('Error starting loading:', error);
+          $('#loading-overlay').hide();
+          $('#splash-overlay').show(); // Show splash screen again on error
       }
   });
 }
 
-function loadPosition() {
-  var username = document.getElementById('username').value;
+function loadPosition(username) {
   $.ajax({
-      url: `http://127.0.0.1:5000/get_position?username=${username}`, // Get a position
-      method: 'GET',
-      success: function(response) {
-          if (response.fen) {
-              var fen = response.fen;
-              board.position(fen);
-              bestMove = response.best_move;
-              blunderMove = response.blunder_move;
-              game.load(fen);  // Update the game state
-              updateStatusFn();  // Update the status display
-          } else {
-              console.log(response.message);
-          }
-      },
-      error: function(error) {
-          console.error('Error fetching position:', error);
+    url: `http://127.0.0.1:5000/get_position?username=${username}`,
+    method: 'GET',
+    success: function(response, status, xhr) {
+      if (xhr.status === 202) {
+        // Positions still loading, retry after a short delay
+        setTimeout(() => loadPosition(username), 1000);
+      } else if (response.fen) {
+        // Position loaded successfully
+        var fen = response.fen;
+        board.position(fen);
+        bestMove = response.best_move;
+        blunderMove = response.blunder_move;
+        game.load(fen);
+        updateStatus();
+        $('#loading-overlay').hide();
+        $('.main-container').show();
+      } else {
+        console.log(response.message);
+        $('#loading-overlay').hide();
+        $('#splash-overlay').show();
       }
+    },
+    error: function(error) {
+      console.error('Error fetching position:', error);
+      $('#loading-overlay').hide();
+      $('#splash-overlay').show();
+    }
   });
 }
 
 // function loadPosition() {
-//   var username = document.getElementById('username').value;
+//   var username = $('#username').val();
 //   $.ajax({
-//     url: 'http://127.0.0.1:5000/hello_world',
-//     method: 'POST',
-//     contentType: 'application/json',
-//     data: JSON.stringify({ username: username }),
-//     success: function(response) {
-//         // Assuming the API returns a FEN string in the "fen" field
-//         var fen = response.fen;
-//         board.position(fen);
-//         bestMove = response.best_move;
-//         blunderMove = response.blunder_move;
-//         game.load(fen);  // Update the game state
-//         updateStatus();  // Update the status display
-//     },
-//     error: function(error) {
-//         console.error('Error fetching position:', error);
-//     }
+//       url: `http://127.0.0.1:5000/get_position?username=${username}`,
+//       method: 'GET',
+//       success: function(response) {
+//           if (response.fen) {
+//               var fen = response.fen;
+//               board.position(fen);
+//               bestMove = response.best_move;
+//               blunderMove = response.blunder_move;
+//               game.load(fen);
+//               updateStatus();
+//               $('#loading-overlay').hide();
+//               $('.main-container').show(); // Show the main content
+//           } else {
+//               console.log(response.message);
+//               $('#loading-overlay').hide();
+//               $('#splash-overlay').show(); // Show splash screen if no position is returned
+//           }
+//       },
+//       error: function(error) {
+//           console.error('Error fetching position:', error);
+//           $('#loading-overlay').hide();
+//           $('#splash-overlay').show(); // Show splash screen on error
+//       }
 //   });
 // }
 
@@ -104,63 +127,61 @@ function onDrop(game, updateStatus) {
   };
 }
 
-function updateStatus () {
-  var status = ''
-
-  var moveColor = 'White'
-  if (game.turn() === 'b') {
-    moveColor = 'Black'
-  }
-
-  // checkmate?
-  if (game.isCheckmate()) {
-    status = 'Game over, ' + moveColor + ' is in checkmate.'
-  }
-
-  // draw?
-  else if (game.isDraw()) {
-    status = 'Game over, drawn position'
-  }
-
-  // game still on
-  else {
-    status = moveColor + ' to move'
-
-    // check?
-    if (game.isCheck()) {
-      status += ', ' + moveColor + ' is in check'
-    }
-  }
-
-  $status.html(status)
-  $fen.html(game.fen())
-  $pgn.html(game.pgn())
+function resizeBoard() {
+  board.resize();
 }
 
-// Attach event listener to the submit button
-document.getElementById('submitUsername').addEventListener('click', function() {
-  var username = document.getElementById('username').value;
-  startLoadingPositions(username);
+// Add a window resize event listener
+window.addEventListener('resize', resizeBoard);
+
+
+function updateStatus() {
+    var status = ''
+    var moveColor = 'White'
+    if (game.turn() === 'b') {
+        moveColor = 'Black'
+    }
+
+    if (game.isCheckmate()) {
+        status = 'Game over, ' + moveColor + ' is in checkmate.'
+    } else if (game.isDraw()) {
+        status = 'Game over, drawn position'
+    } else {
+        status = moveColor + ' to move'
+        if (game.isCheck()) {
+            status += ', ' + moveColor + ' is in check'
+        }
+    }
+
+    $status.html(status)
+    $fen.html(game.fen())
+    $pgn.html(game.pgn())
+}
+
+$('#submitUsername').click(function() {
+  var username = $('#username').val();
+  if (username) {
+      startLoadingPositions(username);
+  } else {
+      alert("Please enter a username");
+  }
 });
 
-// Attach event listener to the load position button
-document.getElementById('loadPosition').addEventListener('click', loadPosition);
 
-// // Attach event listener to the button
-// document.getElementById('submitUsername').addEventListener('click', function() {
-//   var username = document.getElementById('username').value;
-//   loadPosition(username);
-// });
+$('#loadPosition').click(function() {
+  var username = $('#username').val();  // Assuming you still have a username input
+  loadPosition(username);
+});
 
 var config = {
-  draggable: true,
-  position: 'start',
-  pieceTheme: 'node_modules/@chrisoakman/chessboardjs/dist/img/chesspieces/wikipedia/{piece}.png',
-  onDragStart: onDragStart(game),
-  onDrop: onDrop(game, updateStatus),
-  onSnapEnd: function() { onSnapEnd(game, board)(); }
+    draggable: true,
+    position: 'start',
+    pieceTheme: 'node_modules/@chrisoakman/chessboardjs/dist/img/chesspieces/wikipedia/{piece}.png',
+    onDragStart: onDragStart(game),
+    onDrop: onDrop(game, updateStatus),
+    onSnapEnd: function() { onSnapEnd(game, board)(); }
 }
 
 board = Chessboard('myBoard', config)
-
+resizeBoard();
 updateStatus()
