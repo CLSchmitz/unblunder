@@ -28,6 +28,14 @@ export function BlunderBoard() {
     }
   }, [currentBlunder, setPlayerAttemptedMove]);
 
+  // Reset board to initial position when playerAttemptedMove becomes null (replay)
+  useEffect(() => {
+    if (currentBlunder && playerAttemptedMove === null) {
+      const newGame = new Chess(currentBlunder.fen_before);
+      setGame(newGame);
+    }
+  }, [playerAttemptedMove, currentBlunder]);
+
   const onPieceDrop = (sourceSquare: string, targetSquare: string) => {
     if (!currentBlunder) {
       return false;
@@ -148,8 +156,17 @@ export function BlunderBoard() {
     return styles;
   };
 
+  // Determine whose turn it is
+  const turn = game.turn(); // 'w' for white, 'b' for black
+  const isWhiteToMove = turn === 'w';
+
   return (
     <div className="blunder-board-container">
+      {/* Turn indicator */}
+      <div className={`turn-indicator ${isWhiteToMove ? 'white-turn' : 'black-turn'}`}>
+        <span className="king-icon">{isWhiteToMove ? '♔' : '♚'}</span>
+        <span className="turn-text">{isWhiteToMove ? 'White to move' : 'Black to move'}</span>
+      </div>
       <Chessboard
         position={game.fen()}
         onPieceDrop={onPieceDrop}

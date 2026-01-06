@@ -59,3 +59,38 @@
   background-color: rgba(76, 175, 80, 0.4) !important;
 }
 
+/* Turn indicator */
+.turn-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.turn-indicator.white-turn {
+  background-color: #ffffff;
+  color: #000000;
+  border: 3px solid #000000;
+}
+
+.turn-indicator.black-turn {
+  background-color: #000000;
+  color: #ffffff;
+  border: 3px solid #ffffff;
+}
+
+.turn-indicator .king-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.turn-indicator .turn-text {
+  letter-spacing: 0.5px;
+}
+

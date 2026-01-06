@@ -119,8 +119,10 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
     
     all_pgns = []
 
-    for i, link in enumerate(archive_list):
-        logger.debug(f"Processing archive {i+1}/{len(archive_list)}: {link}")
+    # IMPORTANT: process most recent archives FIRST (those at the END of the list)
+    # To get most recent games, process archives in reverse and process games in reverse within each archive
+    for i, link in enumerate(reversed(archive_list)):
+        logger.info(f"Processing archive {len(archive_list)-i}/{len(archive_list)}: {link}")
         
         if limit is not None and len(all_pgns) >= limit:
             logger.info(f"Reached limit of {limit} games, stopping archive processing")
@@ -153,11 +155,19 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
             
             games = games_data['games']
             logger.debug(f"Found {len(games)} games in archive")
-            
-            pgns = [x['pgn'] for x in games if 'pgn' in x.keys()]
-            logger.debug(f"Extracted {len(pgns)} PGNs from archive")
-            all_pgns.extend(pgns)
-            
+
+            # Most recent games are last in archive, so reverse the list
+            games = list(reversed(games))
+
+            for game in games:
+                if 'pgn' in game:
+                    all_pgns.append(game['pgn'])
+                    if limit is not None and len(all_pgns) >= limit:
+                        logger.info(f"Reached limit of {limit} games, stopping game fetching")
+                        break
+            if limit is not None and len(all_pgns) >= limit:
+                break
+
         except requests.exceptions.RequestException as e:
             logger.warning(f"Network error fetching archive {link}: {str(e)}, skipping")
             continue

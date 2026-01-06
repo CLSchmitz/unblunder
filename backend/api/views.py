@@ -3,8 +3,10 @@ from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.http import StreamingHttpResponse
 import logging
 import traceback
+import json
 from datetime import datetime, timedelta
 from core.models import Game, Blunder, PlayerAttempt
 from api.serializers import (
@@ -12,10 +14,129 @@ from api.serializers import (
     AnalysisRequestSerializer, AnalysisResponseSerializer
 )
 from services.chess_com import fetch_user_games
-from services.analyzer import analyze_games_batch
+from services.analyzer import analyze_games_batch, analyze_games_batch_streaming
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+def _stream_analysis(games, username, blunder_params, request):
+    """
+    Generator function that yields Server-Sent Events for streaming analysis results.
+    """
+    # Store username in request for opponent calculation
+    request.username = username
+    
+    try:
+        # Send initial progress
+        yield f"data: {json.dumps({'type': 'progress', 'games_analyzed': 0, 'total_games': len(games)})}\n\n"
+        
+        # Stream analysis results
+        for event_type, data in analyze_games_batch_streaming(games, username, blunder_params):
+            if event_type == 'progress':
+                yield f"data: {json.dumps({'type': 'progress', 'games_analyzed': data['games_analyzed'], 'total_games': data['total_games']})}\n\n"
+            elif event_type == 'blunder':
+                # Serialize the blunder
+                blunder_serializer = BlunderSerializer(data, context={'request': request})
+                yield f"data: {json.dumps({'type': 'blunder', 'blunder': blunder_serializer.data})}\n\n"
+        
+        # Send completion message
+        yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        logger.error("=" * 80)
+        logger.error("STREAMING ANALYSIS: ERROR OCCURRED")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error("Full traceback:")
+        logger.error(error_traceback)
+        logger.error("=" * 80)
+        yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+
+@api_view(['POST'])
+def analyze_stream(request):
+    """
+    Streaming endpoint: Fetch games from chess.com and analyze for blunders progressively.
+    Uses Server-Sent Events (SSE) to stream results as they are found.
+    POST /api/analyze-stream/
+    """
+    logger.info("=" * 80)
+    logger.info("ANALYZE-STREAM ENDPOINT: Request received")
+    logger.info(f"Request data: {request.data}")
+    
+    # Validate request
+    logger.info("Validating request data...")
+    serializer = AnalysisRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        logger.error(f"Validation failed: {serializer.errors}")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    username = serializer.validated_data['username']
+    blunder_params = serializer.validated_data.get('blunder_params', {})
+    logger.info(f"Validated username: {username}")
+    logger.info(f"Validated blunder_params: {blunder_params}")
+    
+    # Set defaults
+    if 'min_eval_delta' not in blunder_params:
+        blunder_params['min_eval_delta'] = 200
+        logger.debug(f"Set default min_eval_delta: 200")
+    if 'depth' not in blunder_params:
+        blunder_params['depth'] = 15
+        logger.debug(f"Set default depth: 15")
+    
+    logger.info(f"Final blunder_params: {blunder_params}")
+    
+    try:
+        # Fetch games
+        logger.info("-" * 80)
+        logger.info("STEP 1: Fetching games from chess.com")
+        logger.info(f"Fetching games for username: {username}, limit: 20")
+        games = fetch_user_games(username, limit=20)
+        logger.info(f"Successfully fetched {len(games)} games")
+        
+        if not games:
+            logger.warning("No games found for username")
+            return Response(
+                {'error': 'No games found for this username'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Sort games by most recent first (played_at descending)
+        games = sorted(games, key=lambda g: g.played_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        logger.info(f"Games sorted by most recent first: {[g.id for g in games]}")
+        
+        logger.info("-" * 80)
+        logger.info("STEP 2: Starting streaming analysis")
+        logger.info(f"Analyzing {len(games)} games with params: {blunder_params}")
+        
+        # Return streaming response
+        response = StreamingHttpResponse(
+            _stream_analysis(games, username, blunder_params, request),
+            content_type='text/event-stream'
+        )
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'  # Disable buffering in nginx
+        logger.info("=" * 80)
+        logger.info("ANALYZE-STREAM ENDPOINT: Streaming started")
+        return response
+    
+    except Exception as e:
+        # Log the full traceback for debugging
+        error_traceback = traceback.format_exc()
+        logger.error("=" * 80)
+        logger.error("ANALYZE-STREAM ENDPOINT: ERROR OCCURRED")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error("Full traceback:")
+        logger.error(error_traceback)
+        logger.error("=" * 80)
+        
+        # Return a proper JSON error response
+        return Response(
+            {'error': str(e), 'detail': f'An error occurred during analysis: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['POST'])
@@ -66,7 +187,9 @@ def analyze(request):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        logger.info(f"Games fetched: {[g.id for g in games]}")
+        # Sort games by most recent first (played_at descending)
+        games = sorted(games, key=lambda g: g.played_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        logger.info(f"Games sorted by most recent first: {[g.id for g in games]}")
         
         # Analyze games
         logger.info("-" * 80)

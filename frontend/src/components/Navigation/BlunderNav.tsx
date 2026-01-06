@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppState } from '../../state/store';
 
 export function BlunderNav() {
-  const { blunders, currentBlunderIndex, goToNextBlunder, goToPreviousBlunder } = useAppState();
+  const { blunders, currentBlunderIndex, goToNextBlunder, goToPreviousBlunder, replayBlunder, playerAttemptedMove } = useAppState();
 
   if (blunders.length === 0) {
     return null;
@@ -10,6 +10,7 @@ export function BlunderNav() {
 
   const isFirst = currentBlunderIndex === 0;
   const isLast = currentBlunderIndex === blunders.length - 1;
+  const hasMove = playerAttemptedMove !== null;
 
   return (
     <div className="info-box">
@@ -20,6 +21,13 @@ export function BlunderNav() {
           disabled={isFirst}
         >
           &lt; Previous
+        </button>
+        <button
+          className="nav-button"
+          onClick={replayBlunder}
+          disabled={!hasMove}
+        >
+          Replay
         </button>
         <button
           className="nav-button"

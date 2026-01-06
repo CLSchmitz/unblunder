@@ -4,7 +4,17 @@ import { api } from '../../api/client';
 import '../Layout/LeftPanel.css';
 
 export function LeftPanel() {
-  const { username, setUsername, setAnalyzing, setAnalysisError, setBlunders, isAnalyzing } = useAppState();
+  const { 
+    username, 
+    setUsername, 
+    setAnalyzing, 
+    setAnalysisError, 
+    setBlunders, 
+    appendBlunder,
+    setAnalysisProgress,
+    analysisProgress,
+    isAnalyzing 
+  } = useAppState();
   const [inputUsername, setInputUsername] = useState('');
 
   const handleFindBlunders = async () => {
@@ -15,20 +25,40 @@ export function LeftPanel() {
     setUsername(inputUsername.trim());
     setAnalyzing(true);
     setAnalysisError(null);
+    setBlunders([]); // Clear previous blunders
+    setAnalysisProgress(null); // Reset progress
 
     try {
-      const response = await api.analyze({
-        username: inputUsername.trim(),
-        blunder_params: {
-          min_eval_delta: 200,
-          depth: 15,
+      await api.analyzeStream(
+        {
+          username: inputUsername.trim(),
+          blunder_params: {
+            min_eval_delta: 200,
+            depth: 15,
+          },
         },
-      });
-      setBlunders(response.blunders);
+        {
+          onProgress: (gamesAnalyzed, totalGames) => {
+            setAnalysisProgress({ gamesAnalyzed, totalGames });
+          },
+          onBlunder: (blunder) => {
+            appendBlunder(blunder);
+          },
+          onComplete: () => {
+            setAnalyzing(false);
+            setAnalysisProgress(null);
+          },
+          onError: (error) => {
+            setAnalysisError(error);
+            setAnalyzing(false);
+            setAnalysisProgress(null);
+          },
+        }
+      );
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze games');
-    } finally {
       setAnalyzing(false);
+      setAnalysisProgress(null);
     }
   };
 
@@ -79,6 +109,35 @@ export function LeftPanel() {
           {isAnalyzing ? 'Loading...' : 'Dev'}
         </button>
       </div>
+
+      {isAnalyzing && analysisProgress && (
+        <div style={{ marginTop: '12px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            marginBottom: '4px',
+            fontSize: '12px',
+            color: '#666'
+          }}>
+            <span>Analyzing games...</span>
+            <span>{analysisProgress.gamesAnalyzed} / {analysisProgress.totalGames}</span>
+          </div>
+          <div style={{
+            width: '100%',
+            height: '8px',
+            backgroundColor: '#e0e0e0',
+            borderRadius: '4px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${(analysisProgress.gamesAnalyzed / analysisProgress.totalGames) * 100}%`,
+              height: '100%',
+              backgroundColor: '#4CAF50',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+        </div>
+      )}
 
       <div className="filter-section filter-disabled">
         <h3>Filters (Coming Soon)</h3>

@@ -3,6 +3,7 @@ import os
 import requests
 import chess.pgn
 import logging
+import hashlib
 from io import StringIO
 from datetime import datetime, timezone as dt_timezone
 from typing import List, Dict, Optional
@@ -28,6 +29,9 @@ def parse_pgn(pgn_string: str) -> Dict:
         return {}
     
     headers = game.headers
+    
+    # Extract Site URL if available (unique identifier for chess.com games)
+    site_url = headers.get('Site', '')
     
     # Extract ELOs
     white_elo = None
@@ -96,6 +100,7 @@ def parse_pgn(pgn_string: str) -> Dict:
         'game_type': game_type,
         'played_at': played_at,
         'pgn': pgn_string,
+        'site_url': site_url,
     }
 
 
@@ -125,15 +130,41 @@ def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
             # Extract played_at before storing in metadata (datetime objects aren't JSON serializable)
             played_at = metadata.pop('played_at', None)
             
+            # Extract site_url for unique identification
+            site_url = metadata.pop('site_url', '')
+            
             # Remove PGN from metadata (we store it separately in the pgn field)
             metadata.pop('pgn', None)
             
-            # Create or get game
-            chess_com_id = f"{username}_{i}"
+            # Generate unique chess_com_id
+            # Prefer Site URL if available (chess.com provides unique game URLs)
+            if site_url:
+                # Extract game ID from URL if it's a chess.com URL
+                # Format: https://www.chess.com/game/live/{game_id} or similar
+                if 'chess.com/game' in site_url:
+                    # Try to extract the game ID from the URL
+                    # Remove trailing slash and split
+                    clean_url = site_url.rstrip('/')
+                    parts = clean_url.split('/')
+                    if len(parts) > 0 and parts[-1]:
+                        game_id_from_url = parts[-1]
+                        chess_com_id = f"chess_com_{game_id_from_url}"
+                    else:
+                        # Fallback: use hash of URL
+                        chess_com_id = f"chess_com_{hashlib.md5(site_url.encode()).hexdigest()[:16]}"
+                else:
+                    # Not a chess.com URL, use hash
+                    chess_com_id = f"site_{hashlib.md5(site_url.encode()).hexdigest()[:16]}"
+            else:
+                # Fallback: create unique ID from game attributes
+                # Use white_player, black_player, date, and time to create a unique hash
+                unique_string = f"{metadata.get('white_player', '')}_{metadata.get('black_player', '')}_{played_at or 'unknown'}"
+                chess_com_id = f"{username}_{hashlib.md5(unique_string.encode()).hexdigest()[:16]}"
+            
             logger.debug(f"Creating/getting game with chess_com_id: {chess_com_id}")
             
             game, created = Game.objects.get_or_create(
-                chess_com_id=chess_com_id,  # Simple ID for MVP
+                chess_com_id=chess_com_id,  # Unique ID based on Site URL or game attributes
                 defaults={
                     'pgn': pgn,
                     'white_player': metadata.get('white_player', ''),

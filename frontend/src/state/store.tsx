@@ -6,6 +6,10 @@ interface AppState {
   username: string;
   isAnalyzing: boolean;
   analysisError: string | null;
+  analysisProgress: {
+    gamesAnalyzed: number;
+    totalGames: number;
+  } | null;
   
   // Blunders
   blunders: Blunder[];
@@ -25,12 +29,15 @@ interface AppContextType extends AppState {
   setUsername: (username: string) => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
   setAnalysisError: (error: string | null) => void;
+  setAnalysisProgress: (progress: { gamesAnalyzed: number; totalGames: number } | null) => void;
   setBlunders: (blunders: Blunder[]) => void;
+  appendBlunder: (blunder: Blunder) => void;
   setCurrentBlunderIndex: (index: number) => void;
   setPlayerAttemptedMove: (move: string | null) => void;
   setSelectedOutcome: (outcome: OutcomeType | null) => void;
   goToNextBlunder: () => void;
   goToPreviousBlunder: () => void;
+  replayBlunder: () => void;
   resetBlunderState: () => void;
 }
 
@@ -40,6 +47,7 @@ const initialState: AppState = {
   username: '',
   isAnalyzing: false,
   analysisError: null,
+  analysisProgress: null,
   blunders: [],
   currentBlunderIndex: 0,
   currentBlunder: null,
@@ -68,6 +76,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateState({ analysisError: error });
   }, [updateState]);
 
+  const setAnalysisProgress = useCallback((progress: { gamesAnalyzed: number; totalGames: number } | null) => {
+    updateState({ analysisProgress: progress });
+  }, [updateState]);
+
   const setBlunders = useCallback((blunders: Blunder[]) => {
     updateState({ 
       blunders, 
@@ -75,6 +87,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentBlunder: blunders.length > 0 ? blunders[0] : null,
     });
   }, [updateState]);
+
+  const appendBlunder = useCallback((blunder: Blunder) => {
+    setState(prev => {
+      const newBlunders = [...prev.blunders, blunder];
+      return {
+        ...prev,
+        blunders: newBlunders,
+        // If this is the first blunder, set it as current
+        currentBlunderIndex: prev.blunders.length === 0 ? 0 : prev.currentBlunderIndex,
+        currentBlunder: prev.blunders.length === 0 ? blunder : prev.currentBlunder,
+      };
+    });
+  }, []);
 
   const setCurrentBlunderIndex = useCallback((index: number) => {
     setState(prev => ({
@@ -126,6 +151,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const replayBlunder = useCallback(() => {
+    updateState({
+      playerAttemptedMove: null,
+      selectedOutcome: null,
+    });
+  }, [updateState]);
+
   const resetBlunderState = useCallback(() => {
     updateState({
       playerAttemptedMove: null,
@@ -138,12 +170,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUsername,
     setAnalyzing,
     setAnalysisError,
+    setAnalysisProgress,
     setBlunders,
+    appendBlunder,
     setCurrentBlunderIndex,
     setPlayerAttemptedMove,
     setSelectedOutcome,
     goToNextBlunder,
     goToPreviousBlunder,
+    replayBlunder,
     resetBlunderState,
   };
 

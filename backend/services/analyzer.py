@@ -280,3 +280,75 @@ def analyze_games_batch(games: List[Game], username: str,
     logger.info(f"Batch analysis complete: {len(all_blunders)} total blunders found across {len(games)} games")
     return all_blunders
 
+
+def analyze_games_batch_streaming(games: List[Game], username: str, 
+                                   blunder_params: Dict):
+    """
+    Analyze multiple games automatically for blunders, yielding results as they are found.
+    
+    Args:
+        games: List of Game model instances
+        username: Chess.com username
+        blunder_params: Detection parameters
+    
+    Yields:
+        Tuples of (event_type, data) where event_type is 'progress' or 'blunder'
+        - 'progress': data is {'games_analyzed': int, 'total_games': int}
+        - 'blunder': data is a Blunder model instance (already saved)
+    """
+    logger.info(f"analyze_games_batch_streaming: Starting analysis of {len(games)} games")
+    logger.info(f"Analysis params: {blunder_params}")
+    
+    depth = blunder_params.get('depth', 15)
+    logger.info(f"Initializing StockfishService with depth={depth}")
+    
+    try:
+        stockfish = StockfishService(depth=depth)
+        logger.info("StockfishService initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize StockfishService: {type(e).__name__}: {str(e)}")
+        raise
+    
+    try:
+        for i, game in enumerate(games):
+            logger.info(f"Analyzing game {i+1}/{len(games)}: Game ID {game.id}")
+            logger.debug(f"Game details: white={game.white_player}, black={game.black_player}, result={game.result}")
+            
+            try:
+                logger.debug(f"Calling analyze_game for game {game.id}")
+                blunders = analyze_game(game, username, blunder_params, stockfish)
+                logger.info(f"Game {game.id} analysis complete: found {len(blunders)} blunders")
+                
+                # Save and yield blunders as they are found
+                for j, blunder in enumerate(blunders):
+                    logger.debug(f"Saving blunder {j+1}/{len(blunders)} from game {game.id}")
+                    blunder.save()
+                    logger.debug(f"Blunder {blunder.id} saved: move_number={blunder.move_number}, eval_delta={blunder.eval_delta}")
+                    # Yield the blunder immediately
+                    yield ('blunder', blunder)
+                
+                # Update game analysis status
+                logger.debug(f"Updating game {game.id} status to 'completed'")
+                game.analysis_status = 'completed'
+                game.analyzed_at = timezone.now()
+                game.save()
+                logger.info(f"Game {game.id} marked as completed")
+                
+                # Yield progress update after each game
+                yield ('progress', {'games_analyzed': i + 1, 'total_games': len(games)})
+                
+            except Exception as e:
+                logger.error(f"Error analyzing game {game.id}: {type(e).__name__}: {str(e)}")
+                logger.debug(f"Full error traceback for game {game.id}:", exc_info=True)
+                game.analysis_status = 'failed'
+                game.save()
+                logger.warning(f"Game {game.id} marked as failed")
+                # Still yield progress even if game failed
+                yield ('progress', {'games_analyzed': i + 1, 'total_games': len(games)})
+                continue
+    finally:
+        logger.info("Closing StockfishService")
+        stockfish.close()
+        logger.info("StockfishService closed")
+    
+    logger.info(f"Streaming batch analysis complete")
