@@ -1,0 +1,61 @@
+/* Dark Green Chessboard Theme */
+.blunder-board-container {
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Dark green theme colors */
+/* Light squares: soft sage green */
+/* Dark squares: deep forest green */
+.blunder-board-container .react-chessboard {
+  --light-square: #8fa68f;
+  --dark-square: #2d4a2d;
+  --highlight: rgba(76, 175, 80, 0.5);
+  --move-hint: rgba(76, 175, 80, 0.3);
+}
+
+/* Apply dark green theme to board squares */
+.blunder-board-container div[class*="square"] {
+  transition: background-color 0.2s ease;
+}
+
+.blunder-board-container [data-square-color="light"],
+.blunder-board-container div[data-square-color="light"] {
+  background-color: #8fa68f !important;
+}
+
+.blunder-board-container [data-square-color="dark"],
+.blunder-board-container div[data-square-color="dark"] {
+  background-color: #2d4a2d !important;
+}
+
+/* Style the board wrapper */
+.blunder-board-container .react-chessboard {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 0 2px rgba(76, 175, 80, 0.2),
+    inset 0 0 20px rgba(45, 74, 45, 0.3);
+}
+
+/* Style for piece drag preview */
+.blunder-board-container .react-chessboard [draggable="true"] {
+  cursor: grab;
+  transition: transform 0.1s ease;
+}
+
+.blunder-board-container .react-chessboard [draggable="true"]:hover {
+  transform: scale(1.05);
+}
+
+.blunder-board-container .react-chessboard [draggable="true"]:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+/* Style for selected/highlighted squares */
+.blunder-board-container .react-chessboard [class*="square-selected"] {
+  background-color: rgba(76, 175, 80, 0.4) !important;
+}
+

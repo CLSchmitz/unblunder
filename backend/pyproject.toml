@@ -1,0 +1,20 @@
+[project]
+name = "unblunder-new"
+version = "0.1.0"
+description = "Chess blunder analysis backend"
+requires-python = ">=3.8"
+dependencies = [
+    "Django>=4.2.0",
+    "djangorestframework>=3.14.0",
+    "django-cors-headers>=4.3.0",
+    "requests>=2.31.0",
+    "python-chess>=1.999",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
