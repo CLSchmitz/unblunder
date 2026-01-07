@@ -4,6 +4,7 @@ from api import views
 urlpatterns = [
     path('analyze/', views.analyze, name='analyze'),
     path('analyze-stream/', views.analyze_stream, name='analyze-stream'),
+    path('evaluate-position/', views.evaluate_position, name='evaluate-position'),
     path('dev/blunders/', views.dev_blunders, name='dev-blunders'),
     path('dev/validate-move/', views.dev_validate_move, name='dev-validate-move'),
     path('blunders/', views.blunder_list, name='blunder-list'),

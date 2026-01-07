@@ -20,9 +20,21 @@ interface AppState {
   playerAttemptedMove: string | null;
   selectedOutcome: OutcomeType | null;
   
+  // Move evaluations (in centipawns, from player's perspective)
+  bestMoveEvaluation: number | null;
+  blunderEvaluation: number | null;
+  playerMoveEvaluation: number | null;
+  isEvaluating: boolean;
+  
   // UI state
   filtersEnabled: boolean;
   blunderDefEnabled: boolean;
+  
+  // Settings
+  showEvalBarDuringGame: boolean;
+  showEvaluationsPaneDuringGame: boolean;
+  showBlunderAfterGame: boolean;
+  showBestBlunderDuringPlay: boolean;
 }
 
 interface AppContextType extends AppState {
@@ -35,10 +47,19 @@ interface AppContextType extends AppState {
   setCurrentBlunderIndex: (index: number) => void;
   setPlayerAttemptedMove: (move: string | null) => void;
   setSelectedOutcome: (outcome: OutcomeType | null) => void;
+  setBestMoveEvaluation: (evaluation: number | null) => void;
+  setBlunderEvaluation: (evaluation: number | null) => void;
+  setPlayerMoveEvaluation: (evaluation: number | null) => void;
+  setIsEvaluating: (isEvaluating: boolean) => void;
+  resetEvaluations: () => void;
   goToNextBlunder: () => void;
   goToPreviousBlunder: () => void;
   replayBlunder: () => void;
   resetBlunderState: () => void;
+  setShowEvalBarDuringGame: (show: boolean) => void;
+  setShowEvaluationsPaneDuringGame: (show: boolean) => void;
+  setShowBlunderAfterGame: (show: boolean) => void;
+  setShowBestBlunderDuringPlay: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -53,8 +74,16 @@ const initialState: AppState = {
   currentBlunder: null,
   playerAttemptedMove: null,
   selectedOutcome: null,
+  bestMoveEvaluation: null,
+  blunderEvaluation: null,
+  playerMoveEvaluation: null,
+  isEvaluating: false,
   filtersEnabled: false,
   blunderDefEnabled: false,
+  showEvalBarDuringGame: true,
+  showEvaluationsPaneDuringGame: true,
+  showBlunderAfterGame: true,
+  showBestBlunderDuringPlay: false,
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -108,6 +137,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentBlunder: prev.blunders[index] || null,
       playerAttemptedMove: null,
       selectedOutcome: null,
+      bestMoveEvaluation: null,
+      blunderEvaluation: null,
+      playerMoveEvaluation: null,
+      isEvaluating: false,
     }));
   }, []);
 
@@ -117,6 +150,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setSelectedOutcome = useCallback((outcome: OutcomeType | null) => {
     updateState({ selectedOutcome: outcome });
+  }, [updateState]);
+
+  const setBestMoveEvaluation = useCallback((evaluation: number | null) => {
+    updateState({ bestMoveEvaluation: evaluation });
+  }, [updateState]);
+
+  const setBlunderEvaluation = useCallback((evaluation: number | null) => {
+    updateState({ blunderEvaluation: evaluation });
+  }, [updateState]);
+
+  const setPlayerMoveEvaluation = useCallback((evaluation: number | null) => {
+    updateState({ playerMoveEvaluation: evaluation });
+  }, [updateState]);
+
+  const setIsEvaluating = useCallback((isEvaluating: boolean) => {
+    updateState({ isEvaluating });
+  }, [updateState]);
+
+  const resetEvaluations = useCallback(() => {
+    updateState({
+      bestMoveEvaluation: null,
+      blunderEvaluation: null,
+      playerMoveEvaluation: null,
+      isEvaluating: false,
+    });
   }, [updateState]);
 
   const goToNextBlunder = useCallback(() => {
@@ -129,6 +187,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           currentBlunder: prev.blunders[newIndex],
           playerAttemptedMove: null,
           selectedOutcome: null,
+          bestMoveEvaluation: null,
+          blunderEvaluation: null,
+          playerMoveEvaluation: null,
+          isEvaluating: false,
         };
       }
       return prev;
@@ -145,6 +207,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           currentBlunder: prev.blunders[newIndex],
           playerAttemptedMove: null,
           selectedOutcome: null,
+          bestMoveEvaluation: null,
+          blunderEvaluation: null,
+          playerMoveEvaluation: null,
+          isEvaluating: false,
         };
       }
       return prev;
@@ -155,6 +221,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateState({
       playerAttemptedMove: null,
       selectedOutcome: null,
+      playerMoveEvaluation: null,
+      isEvaluating: false,
     });
   }, [updateState]);
 
@@ -162,7 +230,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateState({
       playerAttemptedMove: null,
       selectedOutcome: null,
+      bestMoveEvaluation: null,
+      blunderEvaluation: null,
+      playerMoveEvaluation: null,
+      isEvaluating: false,
     });
+  }, [updateState]);
+
+  const setShowEvalBarDuringGame = useCallback((show: boolean) => {
+    updateState({ showEvalBarDuringGame: show });
+  }, [updateState]);
+
+  const setShowEvaluationsPaneDuringGame = useCallback((show: boolean) => {
+    updateState({ showEvaluationsPaneDuringGame: show });
+  }, [updateState]);
+
+  const setShowBlunderAfterGame = useCallback((show: boolean) => {
+    updateState({ showBlunderAfterGame: show });
+  }, [updateState]);
+
+  const setShowBestBlunderDuringPlay = useCallback((show: boolean) => {
+    updateState({ showBestBlunderDuringPlay: show });
   }, [updateState]);
 
   const value: AppContextType = {
@@ -176,10 +264,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentBlunderIndex,
     setPlayerAttemptedMove,
     setSelectedOutcome,
+    setBestMoveEvaluation,
+    setBlunderEvaluation,
+    setPlayerMoveEvaluation,
+    setIsEvaluating,
+    resetEvaluations,
     goToNextBlunder,
     goToPreviousBlunder,
     replayBlunder,
     resetBlunderState,
+    setShowEvalBarDuringGame,
+    setShowEvaluationsPaneDuringGame,
+    setShowBlunderAfterGame,
+    setShowBestBlunderDuringPlay,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

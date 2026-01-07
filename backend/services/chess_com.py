@@ -108,20 +108,22 @@ def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
     """Fetch games from chess.com and create Game objects."""
     logger.info(f"fetch_user_games called: username={username}, limit={limit}")
     
-    # Get PGNs using existing chess_api
-    logger.info("Calling get_pgns to fetch PGN data from chess.com")
+    # Get games (with PGNs and URLs) using existing chess_api
+    logger.info("Calling get_pgns to fetch game data from chess.com")
     try:
-        pgns = get_pgns(username, limit=limit)
-        logger.info(f"get_pgns returned {len(pgns)} PGNs")
+        game_data_list = get_pgns(username, limit=limit)
+        logger.info(f"get_pgns returned {len(game_data_list)} games")
     except Exception as e:
         logger.error(f"Error calling get_pgns: {type(e).__name__}: {str(e)}")
         raise
     
     games = []
-    logger.info(f"Processing {len(pgns)} PGNs to create Game objects")
+    logger.info(f"Processing {len(game_data_list)} games to create Game objects")
     
-    for i, pgn in enumerate(pgns):
-        logger.debug(f"Processing PGN {i+1}/{len(pgns)}")
+    for i, game_data in enumerate(game_data_list):
+        pgn = game_data['pgn']
+        game_url = game_data.get('url', '')
+        logger.debug(f"Processing PGN {i+1}/{len(game_data_list)}")
         try:
             logger.debug(f"Parsing PGN {i+1}...")
             metadata = parse_pgn(pgn)
@@ -130,38 +132,38 @@ def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
             # Extract played_at before storing in metadata (datetime objects aren't JSON serializable)
             played_at = metadata.pop('played_at', None)
             
-            # Extract site_url for unique identification
-            site_url = metadata.pop('site_url', '')
-            
             # Remove PGN from metadata (we store it separately in the pgn field)
             metadata.pop('pgn', None)
             
-            # Generate unique chess_com_id
-            # Prefer Site URL if available (chess.com provides unique game URLs)
-            if site_url:
-                # Extract game ID from URL if it's a chess.com URL
-                # Format: https://www.chess.com/game/live/{game_id} or similar
-                if 'chess.com/game' in site_url:
-                    # Try to extract the game ID from the URL
-                    # Remove trailing slash and split
-                    clean_url = site_url.rstrip('/')
-                    parts = clean_url.split('/')
-                    if len(parts) > 0 and parts[-1]:
-                        game_id_from_url = parts[-1]
-                        chess_com_id = f"chess_com_{game_id_from_url}"
+            # Generate unique chess_com_id from the URL in the game object
+            # Format: https://www.chess.com/game/live/{game_id}
+            if game_url and 'chess.com/game/live/' in game_url:
+                # Extract everything after "live/"
+                try:
+                    # Find the position of "live/" and get everything after it
+                    live_index = game_url.find('live/')
+                    if live_index != -1:
+                        game_id = game_url[live_index + 5:]  # 5 is length of "live/"
+                        # Remove any trailing slashes or query parameters
+                        game_id = game_id.rstrip('/').split('?')[0].split('#')[0]
+                        chess_com_id = f"chess_com_{game_id}"
                     else:
                         # Fallback: use hash of URL
-                        chess_com_id = f"chess_com_{hashlib.md5(site_url.encode()).hexdigest()[:16]}"
-                else:
-                    # Not a chess.com URL, use hash
-                    chess_com_id = f"site_{hashlib.md5(site_url.encode()).hexdigest()[:16]}"
+                        chess_com_id = f"chess_com_{hashlib.md5(game_url.encode()).hexdigest()[:16]}"
+                except Exception as e:
+                    logger.warning(f"Error extracting game ID from URL {game_url}: {e}")
+                    # Fallback: use hash of URL
+                    chess_com_id = f"chess_com_{hashlib.md5(game_url.encode()).hexdigest()[:16]}"
+            elif game_url:
+                # Has URL but not in expected format, use hash
+                chess_com_id = f"chess_com_{hashlib.md5(game_url.encode()).hexdigest()[:16]}"
             else:
                 # Fallback: create unique ID from game attributes
                 # Use white_player, black_player, date, and time to create a unique hash
                 unique_string = f"{metadata.get('white_player', '')}_{metadata.get('black_player', '')}_{played_at or 'unknown'}"
                 chess_com_id = f"{username}_{hashlib.md5(unique_string.encode()).hexdigest()[:16]}"
             
-            logger.debug(f"Creating/getting game with chess_com_id: {chess_com_id}")
+            logger.info(f"Creating/getting game with chess_com_id: {chess_com_id}")
             
             game, created = Game.objects.get_or_create(
                 chess_com_id=chess_com_id,  # Unique ID based on Site URL or game attributes
@@ -193,6 +195,6 @@ def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
             logger.debug(f"Full error for game {i}:", exc_info=True)
             continue
     
-    logger.info(f"Successfully created/retrieved {len(games)} Game objects from {len(pgns)} PGNs")
+    logger.info(f"Successfully created/retrieved {len(games)} Game objects from {len(game_data_list)} games")
     return games
 

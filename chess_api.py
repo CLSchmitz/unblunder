@@ -81,10 +81,11 @@ def make_request_with_retry(url, max_retries=3, base_delay=2, max_delay=60):
 
 def get_pgns(player_id, limit = None, blunder_params = {}):
     '''
-    Returns a list of string pgns from a given chess.com player id.
+    Returns a list of dictionaries with 'pgn' and 'url' keys from a given chess.com player id.
 
     param player_id: string, the id/username of the player
     param limit: int, optional, the max number of (most recent) games to fetch/return
+    Returns: list of dicts with 'pgn' and 'url' keys
     '''
     logger.info(f"Fetching PGNs for player: {player_id}, limit: {limit}")
 
@@ -117,14 +118,16 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
         logger.error(f"Network error fetching archives: {str(e)}")
         raise ValueError(f"Network error connecting to Chess.com API: {str(e)}")
     
-    all_pgns = []
+    all_games = []  # List of dicts with 'pgn' and 'url' keys
+    # Track unique PGNs across all archives to avoid duplicates
+    seen_pgns = set()
 
     # IMPORTANT: process most recent archives FIRST (those at the END of the list)
     # To get most recent games, process archives in reverse and process games in reverse within each archive
     for i, link in enumerate(reversed(archive_list)):
         logger.info(f"Processing archive {len(archive_list)-i}/{len(archive_list)}: {link}")
         
-        if limit is not None and len(all_pgns) >= limit:
+        if limit is not None and len(all_games) >= limit:
             logger.info(f"Reached limit of {limit} games, stopping archive processing")
             break
 
@@ -144,7 +147,8 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
             
             try:
                 games_data = response.json()
-                logger.debug(f"Successfully parsed games JSON from archive. Keys: {list(games_data.keys())}")
+                logger.info(f"Successfully parsed games JSON from archive. Keys: {list(games_data.keys())}")
+                logger.info(f"Number of games: {len(games_data['games'])}")
             except ValueError as e:
                 logger.warning(f"Failed to parse JSON from archive {link}: {str(e)}. Response: {response.text[:200]}")
                 continue
@@ -154,27 +158,58 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
                 continue
             
             games = games_data['games']
-            logger.debug(f"Found {len(games)} games in archive")
+
+            
+            
+            # Ensure games is a list (chess.com API should return a list)
+            if not isinstance(games, list):
+                logger.warning(f"Expected 'games' to be a list, got {type(games)}. Skipping archive {link}")
+                continue
+            
+            if len(games) == 0:
+                logger.info(f"No games found in archive {link}, skipping")
+                continue
+            
+            logger.info(f"Found {len(games)} games in archive {link}")
 
             # Most recent games are last in archive, so reverse the list
             games = list(reversed(games))
 
+            games_added_from_archive = 0
+            
             for game in games:
-                if 'pgn' in game:
-                    all_pgns.append(game['pgn'])
-                    if limit is not None and len(all_pgns) >= limit:
-                        logger.info(f"Reached limit of {limit} games, stopping game fetching")
-                        break
-            if limit is not None and len(all_pgns) >= limit:
+                if 'pgn' not in game:
+                    continue
+                
+                pgn = game['pgn']
+                # Skip if we've already seen this PGN (avoid duplicates across archives)
+                if pgn in seen_pgns:
+                    logger.debug(f"Skipping duplicate PGN (already seen in previous archive)")
+                    continue
+                
+                # Extract URL from game object
+                game_url = game.get('url', '')
+                
+                seen_pgns.add(pgn)
+                all_games.append({'pgn': pgn, 'url': game_url})
+                games_added_from_archive += 1
+                
+                if limit is not None and len(all_games) >= limit:
+                    logger.info(f"Reached limit of {limit} games, stopping game fetching")
+                    break
+            
+            logger.info(f"Added {games_added_from_archive} unique games from archive {link}. Total so far: {len(all_games)}")
+            
+            if limit is not None and len(all_games) >= limit:
                 break
 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Network error fetching archive {link}: {str(e)}, skipping")
             continue
 
-    if limit is not None and len(all_pgns) > limit:
-        logger.info(f"Truncating {len(all_pgns)} PGNs to limit of {limit}")
-        all_pgns = all_pgns[:limit]
+    if limit is not None and len(all_games) > limit:
+        logger.info(f"Truncating {len(all_games)} games to limit of {limit}")
+        all_games = all_games[:limit]
 
-    logger.info(f"Successfully fetched {len(all_pgns)} PGNs for player {player_id}")
-    return all_pgns
+    logger.info(f"Successfully fetched {len(all_games)} games for player {player_id}")
+    return all_games

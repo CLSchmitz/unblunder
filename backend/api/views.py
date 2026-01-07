@@ -11,10 +11,12 @@ from datetime import datetime, timedelta
 from core.models import Game, Blunder, PlayerAttempt
 from api.serializers import (
     BlunderSerializer, PlayerAttemptSerializer, 
-    AnalysisRequestSerializer, AnalysisResponseSerializer
+    AnalysisRequestSerializer, AnalysisResponseSerializer,
+    EvaluatePositionRequestSerializer, EvaluatePositionResponseSerializer
 )
 from services.chess_com import fetch_user_games
 from services.analyzer import analyze_games_batch, analyze_games_batch_streaming
+from services.stockfish import StockfishService
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -445,4 +447,80 @@ def dev_blunders(request):
     }
     
     return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def evaluate_position(request):
+    """
+    Evaluate a chess position and return the evaluation.
+    POST /api/evaluate-position/
+    
+    Request body:
+    {
+        "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "player_color": "white",
+        "depth": 15
+    }
+    
+    Response:
+    {
+        "evaluation": 25.5
+    }
+    """
+    logger.info("=" * 80)
+    logger.info("EVALUATE-POSITION ENDPOINT: Request received")
+    logger.info(f"Request data: {request.data}")
+    
+    # Validate request
+    serializer = EvaluatePositionRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        logger.error(f"Validation failed: {serializer.errors}")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    fen = serializer.validated_data['fen']
+    player_color = serializer.validated_data['player_color']
+    depth = serializer.validated_data.get('depth', 15)
+    
+    logger.info(f"Evaluating position: fen={fen}, player_color={player_color}, depth={depth}")
+    
+    try:
+        # Create Stockfish service instance
+        stockfish = StockfishService(depth=depth)
+        
+        # Evaluate position (from white's perspective)
+        eval_white = stockfish.evaluate_position(fen, depth)
+        logger.debug(f"Raw evaluation (white perspective): {eval_white} centipawns")
+        
+        # Adjust for player color perspective
+        # If player is black, flip the evaluation
+        if player_color == 'black':
+            evaluation = -eval_white
+            logger.debug(f"Flipped eval for black: {evaluation}")
+        else:
+            evaluation = eval_white
+        
+        logger.info(f"Final evaluation (player perspective): {evaluation} centipawns")
+        
+        # Clean up
+        stockfish.close()
+        
+        response_data = {'evaluation': evaluation}
+        logger.info("=" * 80)
+        logger.info("EVALUATE-POSITION ENDPOINT: Success")
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        error_traceback = traceback.format_exc()
+        logger.error("=" * 80)
+        logger.error("EVALUATE-POSITION ENDPOINT: ERROR OCCURRED")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error message: {str(e)}")
+        logger.error("Full traceback:")
+        logger.error(error_traceback)
+        logger.error("=" * 80)
+        
+        return Response(
+            {'error': str(e), 'detail': f'An error occurred during evaluation: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 

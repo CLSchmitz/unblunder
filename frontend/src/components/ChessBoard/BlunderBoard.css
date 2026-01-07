@@ -1,17 +1,39 @@
 /* Dark Green Chessboard Theme */
 .blunder-board-container {
   width: 100%;
-  max-width: 600px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* Container for board and eval bar */
+.board-with-eval {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  max-width: min(80vh, 800px);
+  min-height: 0;
 }
 
 /* Dark green theme colors */
 /* Light squares: soft sage green */
 /* Dark squares: deep forest green */
 .blunder-board-container .react-chessboard {
+  width: 100% !important;
+  max-width: min(80vh, 800px);
+  aspect-ratio: 1;
   --light-square: #8fa68f;
   --dark-square: #2d4a2d;
   --highlight: rgba(76, 175, 80, 0.5);
   --move-hint: rgba(76, 175, 80, 0.3);
+}
+
+.board-with-eval .react-chessboard {
+  flex: 1;
 }
 
 /* Apply dark green theme to board squares */
@@ -65,12 +87,28 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 16px 24px;
-  margin-bottom: 16px;
+  padding: 12px 20px;
+  margin-bottom: 12px;
   border-radius: 8px;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: min(80vh, 800px);
+  box-sizing: border-box;
+  min-height: 52px;
+  position: relative;
+}
+
+.turn-indicator .king-icon {
+  font-size: 28px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .turn-indicator.white-turn {
@@ -85,12 +123,70 @@
   border: 3px solid #ffffff;
 }
 
-.turn-indicator .king-icon {
-  font-size: 28px;
-  line-height: 1;
-}
-
 .turn-indicator .turn-text {
   letter-spacing: 0.5px;
+}
+
+/* Outcome indicator styles */
+.outcome-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 20px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  max-width: min(80vh, 800px);
+  box-sizing: border-box;
+  min-height: 52px;
+  position: relative;
+}
+
+.outcome-indicator::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.outcome-indicator .turn-text {
+  letter-spacing: 0.5px;
+}
+
+.outcome-indicator.outcome-worse {
+  background-color: #f44336;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.outcome-indicator.outcome-better {
+  background-color: #ff9800;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.outcome-indicator.outcome-calculating {
+  background-color: #4682B4;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Green flash animation for best move */
+@keyframes bestMoveFlash {
+  0% {
+    background-color: rgba(76, 175, 80, 0);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
+  50% {
+    background-color: rgba(76, 175, 80, 0.8);
+    box-shadow: 0 0 20px 10px rgba(76, 175, 80, 0.6);
+  }
+  100% {
+    background-color: rgba(76, 175, 80, 0);
+    box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+  }
 }
 

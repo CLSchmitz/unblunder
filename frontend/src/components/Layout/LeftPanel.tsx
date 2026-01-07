@@ -13,7 +13,15 @@ export function LeftPanel() {
     appendBlunder,
     setAnalysisProgress,
     analysisProgress,
-    isAnalyzing 
+    isAnalyzing,
+    showEvalBarDuringGame,
+    showEvaluationsPaneDuringGame,
+    showBlunderAfterGame,
+    showBestBlunderDuringPlay,
+    setShowEvalBarDuringGame,
+    setShowEvaluationsPaneDuringGame,
+    setShowBlunderAfterGame,
+    setShowBestBlunderDuringPlay,
   } = useAppState();
   const [inputUsername, setInputUsername] = useState('');
 
@@ -160,6 +168,54 @@ export function LeftPanel() {
         <div className="input-group">
           <label>Min Eval Delta</label>
           <input type="number" disabled value="200" />
+        </div>
+      </div>
+
+      <div className="filter-section settings-section">
+        <h3>Settings</h3>
+        <div className="settings-item">
+          <label className="settings-label">
+            <span>Show Eval Bar</span>
+            <input
+              type="checkbox"
+              checked={showEvalBarDuringGame}
+              onChange={(e) => setShowEvalBarDuringGame(e.target.checked)}
+              className="settings-toggle"
+            />
+          </label>
+        </div>
+        <div className="settings-item">
+          <label className="settings-label">
+            <span>Show Eval Pane</span>
+            <input
+              type="checkbox"
+              checked={showEvaluationsPaneDuringGame}
+              onChange={(e) => setShowEvaluationsPaneDuringGame(e.target.checked)}
+              className="settings-toggle"
+            />
+          </label>
+        </div>
+        <div className="settings-item">
+          <label className="settings-label">
+            <span>Show Solution After Every Move</span>
+            <input
+              type="checkbox"
+              checked={showBlunderAfterGame}
+              onChange={(e) => setShowBlunderAfterGame(e.target.checked)}
+              className="settings-toggle"
+            />
+          </label>
+        </div>
+        <div className="settings-item">
+          <label className="settings-label">
+            <span>Show Best Move/Blunder During Play</span>
+            <input
+              type="checkbox"
+              checked={showBestBlunderDuringPlay}
+              onChange={(e) => setShowBestBlunderDuringPlay(e.target.checked)}
+              className="settings-toggle"
+            />
+          </label>
         </div>
       </div>
     </div>

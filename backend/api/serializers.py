@@ -51,3 +51,12 @@ class AnalysisResponseSerializer(serializers.Serializer):
     blunders_found = serializers.IntegerField()
     blunders = BlunderSerializer(many=True)
 
+
+class EvaluatePositionRequestSerializer(serializers.Serializer):
+    fen = serializers.CharField(required=True, help_text="FEN notation of the position")
+    player_color = serializers.ChoiceField(choices=['white', 'black'], required=True, help_text="Player's color")
+    depth = serializers.IntegerField(required=False, default=15, min_value=1, max_value=20, help_text="Analysis depth")
+
+
+class EvaluatePositionResponseSerializer(serializers.Serializer):
+    evaluation = serializers.FloatField(help_text="Evaluation in centipawns from player's perspective")

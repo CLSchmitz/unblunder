@@ -1,0 +1,173 @@
+.eval-bar-container {
+  display: flex;
+  align-items: stretch;
+  margin-right: 12px;
+  align-self: stretch;
+  min-height: 0;
+  overflow: visible;
+}
+
+.eval-bar {
+  width: 24px;
+  height: 100%;
+  min-height: 0;
+  align-self: stretch;
+  position: relative;
+  border-radius: 4px;
+  overflow: visible;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  background-color: #2a2a2a;
+  flex-shrink: 0;
+}
+
+.eval-bar-fill {
+  width: 100%;
+  transition: height 0.3s ease;
+  position: relative;
+}
+
+.eval-bar-opponent {
+  /* Opponent color at top */
+  order: 1;
+}
+
+.eval-bar-player {
+  /* Player color at bottom */
+  order: 2;
+}
+
+/* Add a subtle gradient for depth */
+.eval-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  pointer-events: none;
+}
+
+/* Horizontal indicator bars */
+.eval-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  transform: translateY(-50%);
+  z-index: 10;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.eval-indicator-best {
+  background-color: #4caf50; /* Green */
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.8);
+}
+
+.eval-indicator-blunder {
+  background-color: #f44336; /* Red */
+  box-shadow: 0 0 6px rgba(244, 67, 54, 0.8);
+}
+
+.eval-indicator-player {
+  background-color: #4682B4; /* Steel blue */
+  box-shadow: 0 0 6px rgba(70, 130, 180, 0.8);
+}
+
+/* Highlighted indicator (when player made best or blunder move) */
+.eval-indicator-highlighted {
+  height: 10px !important;
+  z-index: 15 !important;
+}
+
+.eval-indicator-best.eval-indicator-highlighted {
+  box-shadow: 
+    0 0 8px rgba(76, 175, 80, 1),
+    0 0 16px rgba(76, 175, 80, 0.9),
+    0 0 24px rgba(76, 175, 80, 0.8),
+    0 0 32px rgba(76, 175, 80, 0.6),
+    0 0 40px rgba(76, 175, 80, 0.4) !important;
+}
+
+.eval-indicator-blunder.eval-indicator-highlighted {
+  box-shadow: 
+    0 0 8px rgba(244, 67, 54, 1),
+    0 0 16px rgba(244, 67, 54, 0.9),
+    0 0 24px rgba(244, 67, 54, 0.8),
+    0 0 32px rgba(244, 67, 54, 0.6),
+    0 0 40px rgba(244, 67, 54, 0.4) !important;
+}
+
+/* Tooltip styles */
+.eval-tooltip {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  min-width: 120px;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+.eval-tooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 6px solid transparent;
+  border-right-color: #1a1a1a;
+}
+
+.eval-tooltip-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.eval-tooltip-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.eval-tooltip-best .eval-tooltip-value {
+  color: #4caf50; /* Green */
+}
+
+.eval-tooltip-player .eval-tooltip-value {
+  color: #4682B4; /* Steel blue */
+}
+
+.eval-tooltip-blunder .eval-tooltip-value {
+  color: #f44336; /* Red */
+}
+

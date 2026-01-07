@@ -167,5 +167,17 @@ export const api = {
     });
     return response.isValid;
   },
+
+  async evaluatePosition(data: { fen: string; player_color: 'white' | 'black'; depth?: number }): Promise<number> {
+    const response = await request<{ evaluation: number }>('/evaluate-position/', {
+      method: 'POST',
+      body: JSON.stringify({
+        fen: data.fen,
+        player_color: data.player_color,
+        depth: data.depth || 15,
+      }),
+    });
+    return response.evaluation;
+  },
 };
 
