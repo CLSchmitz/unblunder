@@ -1,6 +1,9 @@
 import { AnalysisRequest, AnalysisResponse, Blunder, OutcomeType } from '../types/blunder';
 
-const API_BASE_URL = '/api';
+// In Electron, use localhost:8000 directly; in browser dev, use /api (proxied)
+const API_BASE_URL = window.location.protocol === 'file:' 
+  ? 'http://localhost:8000/api'
+  : '/api';
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -40,14 +43,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export interface StreamEvent {
   type: 'progress' | 'blunder' | 'complete' | 'error';
+  games_discovered?: number;
   games_analyzed?: number;
-  total_games?: number;
+  max_games?: number;
+  total_games?: number; // Legacy support
   blunder?: Blunder;
   error?: string;
 }
 
 export interface StreamCallbacks {
-  onProgress?: (gamesAnalyzed: number, totalGames: number) => void;
+  onProgress?: (gamesDiscovered: number, gamesAnalyzed: number, maxGames: number) => void;
   onBlunder?: (blunder: Blunder) => void;
   onComplete?: () => void;
   onError?: (error: string) => void;
@@ -111,8 +116,13 @@ export const api = {
               
               switch (eventData.type) {
                 case 'progress':
-                  if (eventData.games_analyzed !== undefined && eventData.total_games !== undefined) {
-                    callbacks.onProgress?.(eventData.games_analyzed, eventData.total_games);
+                  // Handle new format with games_discovered and max_games
+                  if (eventData.games_discovered !== undefined && eventData.max_games !== undefined && eventData.games_analyzed !== undefined) {
+                    callbacks.onProgress?.(eventData.games_discovered, eventData.games_analyzed, eventData.max_games);
+                  }
+                  // Legacy support for old format
+                  else if (eventData.games_analyzed !== undefined && eventData.total_games !== undefined) {
+                    callbacks.onProgress?.(eventData.total_games, eventData.games_analyzed, eventData.total_games);
                   }
                   break;
                 case 'blunder':

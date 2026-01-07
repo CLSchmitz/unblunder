@@ -4,6 +4,9 @@ import chess.engine
 import logging
 from django.conf import settings
 import os
+from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Optional, Callable
+import threading
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -183,4 +186,122 @@ class StockfishService:
             current_board.push(move)
         
         return continuation
+
+
+class StockfishPool:
+    """
+    Manages a pool of Stockfish instances for parallel game analysis.
+    Uses ThreadPoolExecutor to run multiple analyses concurrently.
+    """
+    
+    def __init__(self, pool_size: Optional[int] = None, depth: int = 15, path: Optional[str] = None):
+        """
+        Initialize the Stockfish pool.
+        
+        Args:
+            pool_size: Number of parallel Stockfish instances (defaults to settings.STOCKFISH_POOL_SIZE)
+            depth: Analysis depth for Stockfish
+            path: Path to Stockfish executable (defaults to settings.STOCKFISH_PATH)
+        """
+        default_pool_size = getattr(settings, 'STOCKFISH_POOL_SIZE', 4)
+        self.pool_size = pool_size or default_pool_size
+        # Ensure minimum of 4 instances for batch analysis
+        if self.pool_size < 4:
+            logger.warning(f"pool_size {self.pool_size} is less than 4, increasing to 4 for batch analysis performance")
+            self.pool_size = 4
+        self.depth = depth
+        self.path = path or settings.STOCKFISH_PATH
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._stockfish_instances = {}  # Thread ID -> StockfishService
+        self._lock = threading.Lock()
+        
+        logger.info(f"Initializing StockfishPool with pool_size={self.pool_size}, depth={self.depth}")
+        
+        # Initialize the thread pool
+        self._executor = ThreadPoolExecutor(max_workers=self.pool_size, thread_name_prefix="StockfishWorker")
+        logger.info(f"StockfishPool initialized with {self.pool_size} workers")
+    
+    def _get_stockfish_for_thread(self) -> StockfishService:
+        """
+        Get or create a StockfishService instance for the current thread.
+        Each worker thread gets its own Stockfish instance.
+        """
+        thread_id = threading.get_ident()
+        
+        with self._lock:
+            if thread_id not in self._stockfish_instances:
+                logger.info(f"Creating new StockfishService instance for thread {thread_id}")
+                stockfish = StockfishService(path=self.path, depth=self.depth)
+                self._stockfish_instances[thread_id] = stockfish
+                logger.info(f"StockfishService instance created for thread {thread_id} (total instances: {len(self._stockfish_instances)})")
+            else:
+                logger.debug(f"Reusing existing StockfishService for thread {thread_id}")
+            return self._stockfish_instances[thread_id]
+    
+    def submit_analysis(self, analyze_func: Callable, *args, **kwargs) -> Future:
+        """
+        Submit a game analysis task to the pool.
+        
+        Args:
+            analyze_func: Function to call for analysis (should accept StockfishService as first arg after game)
+            *args: Positional arguments for analyze_func
+            **kwargs: Keyword arguments for analyze_func
+        
+        Returns:
+            Future object representing the analysis task
+        """
+        def worker(*args, **kwargs):
+            """Worker function that gets a Stockfish instance and runs analysis."""
+            thread_id = threading.get_ident()
+            logger.info(f"Worker thread {thread_id} starting analysis task")
+            stockfish = self._get_stockfish_for_thread()
+            logger.debug(f"Worker thread {thread_id} obtained Stockfish instance, starting analysis")
+            try:
+                result = analyze_func(*args, stockfish=stockfish, **kwargs)
+                logger.info(f"Worker thread {thread_id} completed analysis task")
+                return result
+            except Exception as e:
+                logger.error(f"Worker thread {thread_id} encountered error during analysis: {type(e).__name__}: {str(e)}")
+                raise
+        
+        if self._executor is None:
+            raise RuntimeError("StockfishPool has been closed")
+        
+        logger.info(f"Submitting analysis task to pool")
+        future = self._executor.submit(worker, *args, **kwargs)
+        logger.info(f"Analysis task submitted successfully, future created")
+        return future
+    
+    def close(self):
+        """Close all Stockfish instances and shutdown the thread pool."""
+        logger.info(f"Closing StockfishPool (active instances: {len(self._stockfish_instances)})")
+        
+        # Shutdown executor (waits for pending tasks)
+        if self._executor:
+            logger.info("Shutting down ThreadPoolExecutor and waiting for pending tasks")
+            self._executor.shutdown(wait=True)
+            self._executor = None
+            logger.info("ThreadPoolExecutor shutdown complete")
+        
+        # Close all Stockfish instances
+        with self._lock:
+            logger.info(f"Closing {len(self._stockfish_instances)} StockfishService instances")
+            for thread_id, stockfish in self._stockfish_instances.items():
+                try:
+                    logger.info(f"Closing StockfishService for thread {thread_id}")
+                    stockfish.close()
+                except Exception as e:
+                    logger.warning(f"Error closing StockfishService for thread {thread_id}: {e}")
+            self._stockfish_instances.clear()
+        
+        logger.info("StockfishPool closed successfully")
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensures cleanup."""
+        self.close()
+        return False
 

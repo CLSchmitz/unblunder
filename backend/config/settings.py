@@ -115,6 +115,12 @@ CORS_ALLOW_ALL_ORIGINS = True  # For MVP development
 # Stockfish path
 STOCKFISH_PATH = os.path.join(BASE_DIR, 'stockfish-windows-x86-64-avx2.exe')
 
+# Stockfish pool size for parallel analysis
+# Number of parallel Stockfish instances to use for game analysis
+# Can be overridden via environment variable STOCKFISH_POOL_SIZE
+# Minimum of 4 for batch analysis performance
+STOCKFISH_POOL_SIZE = max(4, int(os.environ.get('STOCKFISH_POOL_SIZE', 4)))
+
 # Logging configuration
 LOGGING = {
     'version': 1,

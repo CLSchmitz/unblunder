@@ -81,11 +81,12 @@ def make_request_with_retry(url, max_retries=3, base_delay=2, max_delay=60):
 
 def get_pgns(player_id, limit = None, blunder_params = {}):
     '''
-    Returns a list of dictionaries with 'pgn' and 'url' keys from a given chess.com player id.
+    Generator that yields dictionaries with 'pgn' and 'url' keys from a given chess.com player id.
+    Yields games as they are found in archives, allowing analysis to start immediately.
 
     param player_id: string, the id/username of the player
-    param limit: int, optional, the max number of (most recent) games to fetch/return
-    Returns: list of dicts with 'pgn' and 'url' keys
+    param limit: int, optional, the max number of (most recent) games to yield
+    Yields: dicts with 'pgn' and 'url' keys
     '''
     logger.info(f"Fetching PGNs for player: {player_id}, limit: {limit}")
 
@@ -118,16 +119,16 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
         logger.error(f"Network error fetching archives: {str(e)}")
         raise ValueError(f"Network error connecting to Chess.com API: {str(e)}")
     
-    all_games = []  # List of dicts with 'pgn' and 'url' keys
     # Track unique PGNs across all archives to avoid duplicates
     seen_pgns = set()
+    games_yielded = 0  # Track how many games we've yielded
 
     # IMPORTANT: process most recent archives FIRST (those at the END of the list)
     # To get most recent games, process archives in reverse and process games in reverse within each archive
     for i, link in enumerate(reversed(archive_list)):
         logger.info(f"Processing archive {len(archive_list)-i}/{len(archive_list)}: {link}")
         
-        if limit is not None and len(all_games) >= limit:
+        if limit is not None and games_yielded >= limit:
             logger.info(f"Reached limit of {limit} games, stopping archive processing")
             break
 
@@ -158,8 +159,6 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
                 continue
             
             games = games_data['games']
-
-            
             
             # Ensure games is a list (chess.com API should return a list)
             if not isinstance(games, list):
@@ -175,9 +174,13 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
             # Most recent games are last in archive, so reverse the list
             games = list(reversed(games))
 
-            games_added_from_archive = 0
+            games_yielded_from_archive = 0
             
             for game in games:
+                if limit is not None and games_yielded >= limit:
+                    logger.info(f"Reached limit of {limit} games, stopping game fetching")
+                    break
+                
                 if 'pgn' not in game:
                     continue
                 
@@ -191,25 +194,22 @@ def get_pgns(player_id, limit = None, blunder_params = {}):
                 game_url = game.get('url', '')
                 
                 seen_pgns.add(pgn)
-                all_games.append({'pgn': pgn, 'url': game_url})
-                games_added_from_archive += 1
+                games_yielded += 1
+                games_yielded_from_archive += 1
                 
-                if limit is not None and len(all_games) >= limit:
-                    logger.info(f"Reached limit of {limit} games, stopping game fetching")
-                    break
+                # Yield the game immediately as it's found
+                logger.info(f"Yielding game {games_yielded} from archive {link} (total yielded: {games_yielded})")
+                yield {'pgn': pgn, 'url': game_url}
             
-            logger.info(f"Added {games_added_from_archive} unique games from archive {link}. Total so far: {len(all_games)}")
+            logger.info(f"Yielded {games_yielded_from_archive} unique games from archive {link}. Total yielded so far: {games_yielded}")
             
-            if limit is not None and len(all_games) >= limit:
+            if limit is not None and games_yielded >= limit:
                 break
 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Network error fetching archive {link}: {str(e)}, skipping")
             continue
 
-    if limit is not None and len(all_games) > limit:
-        logger.info(f"Truncating {len(all_games)} games to limit of {limit}")
-        all_games = all_games[:limit]
-
-    logger.info(f"Successfully fetched {len(all_games)} games for player {player_id}")
-    return all_games
+    logger.info(f"Successfully fetched and yielded {games_yielded} games for player {player_id}")
+    if games_yielded == 0:
+        logger.warning(f"No games were yielded for player {player_id}")

@@ -10,6 +10,8 @@ interface EvaluationDisplayProps {
   showEvaluationsPaneDuringGame?: boolean;
   showBestBlunderDuringPlay?: boolean;
   playerAttemptedMove: string | null;
+  isBestMove?: boolean;
+  currentBlunder?: { fen_before: string; best_move: string; actual_move: string } | null;
 }
 
 function formatEvaluation(evaluation: number | null): string {
@@ -29,6 +31,8 @@ export function EvaluationDisplay({
   showEvaluationsPaneDuringGame = true,
   showBestBlunderDuringPlay = false,
   playerAttemptedMove,
+  isBestMove = false,
+  currentBlunder,
 }: EvaluationDisplayProps) {
   // If evaluations pane is off, grey it out and show dashes
   const isDisabled = !showEvaluationsPaneDuringGame;
@@ -37,10 +41,31 @@ export function EvaluationDisplay({
   
   // Determine when to show best/blunder values:
   // - During play: show if showEvaluationsPaneDuringGame AND showBestBlunderDuringPlay are both ON
-  // - After play: show if showEvaluationsPaneDuringGame AND showBlunderAfterGame are both ON
-  const shouldShowBestAndBlunder = showEvaluationsPaneDuringGame && (
-    isAfterMove ? showBlunderAfterGame : showBestBlunderDuringPlay
-  );
+  // - After play: 
+  //   * If showBlunderAfterGame is ON: show both best and blunder (original behavior)
+  //   * If showBlunderAfterGame is OFF: always show blunder eval, and show best move eval if player played correctly
+  let shouldShowBlunder = false;
+  let shouldShowBestMove = false;
+  
+  if (!isAfterMove) {
+    // Before move: show if showEvaluationsPaneDuringGame AND showBestBlunderDuringPlay are both ON
+    shouldShowBestMove = showEvaluationsPaneDuringGame && showBestBlunderDuringPlay;
+    shouldShowBlunder = showEvaluationsPaneDuringGame && showBestBlunderDuringPlay;
+  } else {
+    // After move
+    if (showBlunderAfterGame) {
+      // Original behavior: show both if setting is ON
+      shouldShowBestMove = showEvaluationsPaneDuringGame;
+      shouldShowBlunder = showEvaluationsPaneDuringGame;
+    } else {
+      // New behavior when setting is OFF:
+      // Always show blunder eval after a move
+      // Show best move eval if player played the correct move
+      shouldShowBlunder = showEvaluationsPaneDuringGame;
+      shouldShowBestMove = showEvaluationsPaneDuringGame && isBestMove;
+    }
+  }
+  
   const shouldShowPlayerMove = showEvaluationsPaneDuringGame;
 
   return (
@@ -50,7 +75,7 @@ export function EvaluationDisplay({
         <div className="evaluation-item evaluation-best">
           <div className="evaluation-label">Best Move</div>
           <div className="evaluation-value">
-            {shouldShowBestAndBlunder && bestMoveEvaluation !== null ? formatEvaluation(bestMoveEvaluation) : '—'}
+            {shouldShowBestMove && bestMoveEvaluation !== null ? formatEvaluation(bestMoveEvaluation) : '—'}
           </div>
         </div>
         <div className="evaluation-item evaluation-player">
@@ -68,7 +93,7 @@ export function EvaluationDisplay({
         <div className="evaluation-item evaluation-blunder">
           <div className="evaluation-label">Blunder</div>
           <div className="evaluation-value">
-            {shouldShowBestAndBlunder && blunderEvaluation !== null ? formatEvaluation(blunderEvaluation) : '—'}
+            {shouldShowBlunder && blunderEvaluation !== null ? formatEvaluation(blunderEvaluation) : '—'}
           </div>
         </div>
       </div>

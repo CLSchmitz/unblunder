@@ -28,6 +28,12 @@ dist/
 dist-ssr/
 *.local
 
+# Electron
+dist-electron/
+*.exe
+*.dmg
+*.AppImage
+
 # IDE
 .vscode/
 .idea/

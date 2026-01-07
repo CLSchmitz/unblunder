@@ -104,28 +104,38 @@ def parse_pgn(pgn_string: str) -> Dict:
     }
 
 
-def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
-    """Fetch games from chess.com and create Game objects."""
+def fetch_user_games(username: str, limit: int = 20):
+    """
+    Generator that yields Game objects as they are created from chess.com.
+    Yields games immediately as they are fetched and parsed, allowing analysis to start right away.
+    
+    Args:
+        username: Chess.com username
+        limit: Maximum number of games to fetch
+    
+    Yields:
+        Game model instances
+    """
     logger.info(f"fetch_user_games called: username={username}, limit={limit}")
     
-    # Get games (with PGNs and URLs) using existing chess_api
+    # Get games (with PGNs and URLs) using existing chess_api generator
     logger.info("Calling get_pgns to fetch game data from chess.com")
     try:
-        game_data_list = get_pgns(username, limit=limit)
-        logger.info(f"get_pgns returned {len(game_data_list)} games")
+        game_data_generator = get_pgns(username, limit=limit)
     except Exception as e:
         logger.error(f"Error calling get_pgns: {type(e).__name__}: {str(e)}")
         raise
     
-    games = []
-    logger.info(f"Processing {len(game_data_list)} games to create Game objects")
+    games_yielded = 0
     
-    for i, game_data in enumerate(game_data_list):
+    logger.info("Starting to process games from generator")
+    for game_data in game_data_generator:
         pgn = game_data['pgn']
         game_url = game_data.get('url', '')
-        logger.debug(f"Processing PGN {i+1}/{len(game_data_list)}")
+        games_yielded += 1
+        logger.info(f"Processing PGN {games_yielded} from generator")
         try:
-            logger.debug(f"Parsing PGN {i+1}...")
+            logger.debug(f"Parsing PGN {games_yielded}...")
             metadata = parse_pgn(pgn)
             logger.debug(f"Parsed metadata: white={metadata.get('white_player')}, black={metadata.get('black_player')}")
             
@@ -183,18 +193,18 @@ def fetch_user_games(username: str, limit: int = 20) -> List[Game]:
             )
             
             if created:
-                logger.debug(f"Created new game {game.id}")
+                logger.info(f"Created new game {game.id} (game {games_yielded})")
             else:
-                logger.debug(f"Retrieved existing game {game.id}")
+                logger.info(f"Retrieved existing game {game.id} (game {games_yielded})")
             
-            games.append(game)
-            logger.debug(f"Successfully processed game {i+1}")
+            # Yield the game immediately after creation/retrieval
+            logger.info(f"Yielding game {games_yielded} (ID: {game.id}) to analysis pipeline")
+            yield game
             
         except Exception as e:
-            logger.warning(f"Error processing game {i}: {type(e).__name__}: {str(e)}")
-            logger.debug(f"Full error for game {i}:", exc_info=True)
+            logger.warning(f"Error processing game {games_yielded}: {type(e).__name__}: {str(e)}")
+            logger.debug(f"Full error for game {games_yielded}:", exc_info=True)
             continue
     
-    logger.info(f"Successfully created/retrieved {len(games)} Game objects from {len(game_data_list)} games")
-    return games
+    logger.info(f"Successfully created/retrieved and yielded {games_yielded} Game objects")
 

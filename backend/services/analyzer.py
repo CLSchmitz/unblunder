@@ -2,10 +2,12 @@ import chess
 import chess.pgn
 import logging
 from io import StringIO
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Iterator
 from django.utils import timezone
+from django.conf import settings
 from core.models import Game, Blunder
-from services.stockfish import StockfishService
+from services.stockfish import StockfishService, StockfishPool
+from concurrent.futures import Future, as_completed
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -281,74 +283,202 @@ def analyze_games_batch(games: List[Game], username: str,
     return all_blunders
 
 
-def analyze_games_batch_streaming(games: List[Game], username: str, 
-                                   blunder_params: Dict):
+def _analyze_game_with_stockfish(game: Game, username: str, blunder_params: Dict, *, stockfish: StockfishService):
+    """
+    Wrapper function for analyze_game that accepts stockfish as a keyword-only argument.
+    This is used by the StockfishPool to pass the Stockfish instance.
+    The * forces stockfish to be passed as a keyword argument.
+    """
+    return analyze_game(game, username, blunder_params, stockfish)
+
+
+def analyze_games_batch_streaming(games: Iterator[Game], username: str, 
+                                   blunder_params: Dict, max_games: int):
     """
     Analyze multiple games automatically for blunders, yielding results as they are found.
+    Consumes games from a generator and analyzes them in parallel using StockfishPool.
     
     Args:
-        games: List of Game model instances
+        games: Generator/Iterator of Game model instances
         username: Chess.com username
         blunder_params: Detection parameters
+        max_games: Maximum number of games to process
     
     Yields:
         Tuples of (event_type, data) where event_type is 'progress' or 'blunder'
-        - 'progress': data is {'games_analyzed': int, 'total_games': int}
+        - 'progress': data is {'games_discovered': int, 'games_analyzed': int, 'max_games': int}
         - 'blunder': data is a Blunder model instance (already saved)
     """
-    logger.info(f"analyze_games_batch_streaming: Starting analysis of {len(games)} games")
-    logger.info(f"Analysis params: {blunder_params}")
+    logger.info(f"analyze_games_batch_streaming: Starting streaming analysis")
+    logger.info(f"Analysis params: {blunder_params}, max_games: {max_games}")
     
     depth = blunder_params.get('depth', 15)
-    logger.info(f"Initializing StockfishService with depth={depth}")
+    logger.info(f"Initializing StockfishPool with depth={depth}")
+    
+    # Track pending analyses and completed games
+    pending_futures = {}  # Future -> (game, game_index)
+    games_submitted = 0
+    games_completed = 0
+    games_discovered = 0
+    all_games = []  # Track all games for progress reporting
     
     try:
-        stockfish = StockfishService(depth=depth)
-        logger.info("StockfishService initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize StockfishService: {type(e).__name__}: {str(e)}")
-        raise
-    
-    try:
-        for i, game in enumerate(games):
-            logger.info(f"Analyzing game {i+1}/{len(games)}: Game ID {game.id}")
-            logger.debug(f"Game details: white={game.white_player}, black={game.black_player}, result={game.result}")
+        logger.info("Initializing StockfishPool for parallel analysis")
+        # Ensure at least 4 instances for batch analysis
+        pool_size = max(4, getattr(settings, 'STOCKFISH_POOL_SIZE', 4))
+        logger.info(f"Using StockfishPool with {pool_size} instances for batch analysis")
+        with StockfishPool(pool_size=pool_size, depth=depth) as pool:
+            logger.info("StockfishPool initialized successfully, starting to process games from generator")
             
-            try:
-                logger.debug(f"Calling analyze_game for game {game.id}")
-                blunders = analyze_game(game, username, blunder_params, stockfish)
-                logger.info(f"Game {game.id} analysis complete: found {len(blunders)} blunders")
+            # Process games as they come from the generator
+            for game in games:
+                all_games.append(game)
+                games_discovered += 1
+                games_submitted += 1
+                game_index = games_submitted - 1
                 
-                # Save and yield blunders as they are found
-                for j, blunder in enumerate(blunders):
-                    logger.debug(f"Saving blunder {j+1}/{len(blunders)} from game {game.id}")
-                    blunder.save()
-                    logger.debug(f"Blunder {blunder.id} saved: move_number={blunder.move_number}, eval_delta={blunder.eval_delta}")
-                    # Yield the blunder immediately
-                    yield ('blunder', blunder)
+                # Report discovery progress
+                yield ('progress', {'games_discovered': games_discovered, 'games_analyzed': games_completed, 'max_games': max_games})
                 
-                # Update game analysis status
-                logger.debug(f"Updating game {game.id} status to 'completed'")
-                game.analysis_status = 'completed'
-                game.analyzed_at = timezone.now()
-                game.save()
-                logger.info(f"Game {game.id} marked as completed")
+                logger.info(f"Discovered game {games_discovered}/{max_games}, submitting for analysis: Game ID {game.id}")
+                logger.debug(f"Game details: white={game.white_player}, black={game.black_player}, result={game.result}")
                 
-                # Yield progress update after each game
-                yield ('progress', {'games_analyzed': i + 1, 'total_games': len(games)})
+                # Submit game for analysis
+                logger.info(f"Submitting game {game.id} to analysis pool (pending: {len(pending_futures)})")
+                future = pool.submit_analysis(
+                    _analyze_game_with_stockfish,
+                    game, username, blunder_params
+                )
+                pending_futures[future] = (game, game_index)
+                logger.info(f"Game {game.id} submitted to pool successfully ({len(pending_futures)} analyses now pending)")
                 
-            except Exception as e:
-                logger.error(f"Error analyzing game {game.id}: {type(e).__name__}: {str(e)}")
-                logger.debug(f"Full error traceback for game {game.id}:", exc_info=True)
-                game.analysis_status = 'failed'
-                game.save()
-                logger.warning(f"Game {game.id} marked as failed")
-                # Still yield progress even if game failed
-                yield ('progress', {'games_analyzed': i + 1, 'total_games': len(games)})
-                continue
-    finally:
-        logger.info("Closing StockfishService")
-        stockfish.close()
-        logger.info("StockfishService closed")
+                # Process completed analyses as they finish (non-blocking check)
+                completed_futures = []
+                for future in list(pending_futures.keys()):
+                    if future.done():
+                        completed_futures.append(future)
+                
+                if completed_futures:
+                    logger.info(f"Found {len(completed_futures)} completed analysis(ies) while processing game {games_submitted}")
+                
+                # Process each completed analysis
+                for future in completed_futures:
+                    game, game_index = pending_futures.pop(future)
+                    games_completed += 1
+                    
+                    try:
+                        logger.info(f"Processing completed analysis for game {game.id} (completed {games_completed}/{games_submitted})")
+                        blunders = future.result()  # Get the result (list of Blunder objects)
+                        logger.info(f"Game {game.id} analysis complete: found {len(blunders)} blunders")
+                        
+                        # Save and yield blunders as they are found
+                        for blunder in blunders:
+                            logger.info(f"Saving blunder from game {game.id} (move {blunder.move_number}, delta: {blunder.eval_delta})")
+                            blunder.save()
+                            logger.info(f"Blunder {blunder.id} saved and ready to yield (move_number={blunder.move_number}, eval_delta={blunder.eval_delta})")
+                            # Yield the blunder immediately
+                            yield ('blunder', blunder)
+                        
+                        # Update game analysis status
+                        logger.debug(f"Updating game {game.id} status to 'completed'")
+                        game.analysis_status = 'completed'
+                        game.analyzed_at = timezone.now()
+                        game.save()
+                        logger.info(f"Game {game.id} marked as completed")
+                        
+                    except Exception as e:
+                        logger.error(f"Error in analysis result for game {game.id}: {type(e).__name__}: {str(e)}")
+                        logger.debug(f"Full error traceback for game {game.id}:", exc_info=True)
+                        game.analysis_status = 'failed'
+                        game.save()
+                        logger.warning(f"Game {game.id} marked as failed")
+                    
+                    # Yield progress update after each completed game
+                    yield ('progress', {'games_discovered': games_discovered, 'games_analyzed': games_completed, 'max_games': max_games})
+            
+            # Process any remaining completed analyses from the discovery loop before waiting for more
+            completed_futures = []
+            for future in list(pending_futures.keys()):
+                if future.done():
+                    completed_futures.append(future)
+            
+            if completed_futures:
+                logger.info(f"Processing {len(completed_futures)} additional completed analysis(ies) after discovery loop")
+            
+            for future in completed_futures:
+                game, game_index = pending_futures.pop(future)
+                games_completed += 1
+                
+                try:
+                    logger.info(f"Processing completed analysis for game {game.id} (completed {games_completed}/{games_submitted})")
+                    blunders = future.result()
+                    logger.info(f"Game {game.id} analysis complete: found {len(blunders)} blunders")
+                    
+                    for blunder in blunders:
+                        logger.info(f"Saving blunder from game {game.id} (move {blunder.move_number}, delta: {blunder.eval_delta})")
+                        blunder.save()
+                        logger.info(f"Blunder {blunder.id} saved and ready to yield (move_number={blunder.move_number}, eval_delta={blunder.eval_delta})")
+                        yield ('blunder', blunder)
+                    
+                    game.analysis_status = 'completed'
+                    game.analyzed_at = timezone.now()
+                    game.save()
+                    logger.info(f"Game {game.id} marked as completed")
+                    
+                except Exception as e:
+                    logger.error(f"Error in analysis result for game {game.id}: {type(e).__name__}: {str(e)}")
+                    logger.debug(f"Full error traceback for game {game.id}:", exc_info=True)
+                    game.analysis_status = 'failed'
+                    game.save()
+                    logger.warning(f"Game {game.id} marked as failed")
+                
+                yield ('progress', {'games_discovered': games_discovered, 'games_analyzed': games_completed, 'max_games': max_games})
+            
+            # After all games are submitted, wait for remaining analyses to complete
+            logger.info(f"All {games_submitted} games submitted. Waiting for {len(pending_futures)} remaining analyses to complete")
+            
+            # Process remaining completed analyses
+            logger.info(f"Processing remaining {len(pending_futures)} analyses as they complete")
+            for future in as_completed(pending_futures.keys()):
+                game, game_index = pending_futures.pop(future)
+                games_completed += 1
+                
+                try:
+                    logger.info(f"Processing final completed analysis for game {game.id} (completed {games_completed}/{games_submitted})")
+                    blunders = future.result()
+                    logger.info(f"Game {game.id} analysis complete: found {len(blunders)} blunders")
+                    
+                    # Save and yield blunders
+                    for blunder in blunders:
+                        logger.info(f"Saving blunder from game {game.id} (move {blunder.move_number}, delta: {blunder.eval_delta})")
+                        blunder.save()
+                        logger.info(f"Blunder {blunder.id} saved and ready to yield (move_number={blunder.move_number}, eval_delta={blunder.eval_delta})")
+                        yield ('blunder', blunder)
+                    
+                    # Update game analysis status
+                    logger.debug(f"Updating game {game.id} status to 'completed'")
+                    game.analysis_status = 'completed'
+                    game.analyzed_at = timezone.now()
+                    game.save()
+                    logger.info(f"Game {game.id} marked as completed")
+                    
+                except Exception as e:
+                    logger.error(f"Error in analysis result for game {game.id}: {type(e).__name__}: {str(e)}")
+                    logger.debug(f"Full error traceback for game {game.id}:", exc_info=True)
+                    game.analysis_status = 'failed'
+                    game.save()
+                    logger.warning(f"Game {game.id} marked as failed")
+                
+                # Yield progress update
+                yield ('progress', {'games_discovered': games_discovered, 'games_analyzed': games_completed, 'max_games': max_games})
+            
+            # Yield final progress update to ensure UI reflects final state
+            logger.info(f"All analyses complete: {games_completed}/{games_submitted} games analyzed")
+            yield ('progress', {'games_discovered': games_discovered, 'games_analyzed': games_completed, 'max_games': max_games})
+    
+    except Exception as e:
+        logger.error(f"Error in analyze_games_batch_streaming: {type(e).__name__}: {str(e)}")
+        logger.debug("Full error traceback:", exc_info=True)
+        raise
     
     logger.info(f"Streaming batch analysis complete")

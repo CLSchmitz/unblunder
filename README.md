@@ -138,6 +138,25 @@ The frontend will be available at `http://localhost:5173`
 - `GET /api/blunders/{id}/` - Get specific blunder
 - `POST /api/blunders/{id}/attempt/` - Submit outcome for a blunder
 
+## Desktop Executable
+
+You can create a one-click desktop executable for Windows! See [BUILD.md](BUILD.md) for detailed instructions.
+
+### Quick Start (Simple Launcher)
+
+**Option 1: Batch Script**
+- Double-click `Unblunder.bat` to start the app
+- Requires Python and Node.js to be installed
+
+**Option 2: PowerShell Script**
+- Right-click `Unblunder.ps1` → "Run with PowerShell"
+- Requires Python and Node.js to be installed
+
+**Option 3: Electron Desktop App** (Recommended for distribution)
+- Run `npm install` in the project root
+- Run `npm run electron:build` to create an installer
+- See [BUILD.md](BUILD.md) for full instructions
+
 ## Notes
 
 - Stockfish executable must be in the project root (`stockfish-windows-x86-64-avx2.exe`)

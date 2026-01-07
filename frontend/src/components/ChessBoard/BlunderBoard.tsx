@@ -24,11 +24,14 @@ export function BlunderBoard() {
     showEvalBarDuringGame,
     showBlunderAfterGame,
     showBestBlunderDuringPlay,
+    hintStep,
   } = useAppState();
   const [game, setGame] = useState(new Chess());
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
   const [bestMoveTargetSquare, setBestMoveTargetSquare] = useState<string | null>(null);
   const [showBestMoveFlash, setShowBestMoveFlash] = useState(false);
+  const [blunderTargetSquare, setBlunderTargetSquare] = useState<string | null>(null);
+  const [showBlunderFlash, setShowBlunderFlash] = useState(false);
 
   useEffect(() => {
     if (currentBlunder) {
@@ -43,6 +46,9 @@ export function BlunderBoard() {
       resetEvaluations();
       setBestMoveTargetSquare(null);
       setShowBestMoveFlash(false);
+      setBlunderTargetSquare(null);
+      setShowBlunderFlash(false);
+      // Hint state is reset in the store when blunder changes
       
       // Calculate and set known evaluations
       const estimatedBestMoveEvaluation = currentBlunder.eval_before - currentBlunder.eval_delta;
@@ -57,6 +63,8 @@ export function BlunderBoard() {
       resetEvaluations();
       setBestMoveTargetSquare(null);
       setShowBestMoveFlash(false);
+      setBlunderTargetSquare(null);
+      setShowBlunderFlash(false);
     }
   }, [currentBlunder, setPlayerAttemptedMove, setBestMoveEvaluation, setBlunderEvaluation, resetEvaluations]);
 
@@ -68,6 +76,8 @@ export function BlunderBoard() {
       setPlayerMoveEvaluation(null);
       setBestMoveTargetSquare(null);
       setShowBestMoveFlash(false);
+      setBlunderTargetSquare(null);
+      setShowBlunderFlash(false);
     }
   }, [playerAttemptedMove, currentBlunder, setPlayerMoveEvaluation]);
 
@@ -112,15 +122,26 @@ export function BlunderBoard() {
         // Store the attempted move in SAN notation
         setPlayerAttemptedMove(move.san);
         
-        // Check if this is the best move and trigger flash
+        // Check if this is the best move or blunder move and trigger flash
         if (currentBlunder) {
           const isBestMove = movesMatch(currentBlunder.fen_before, move.san, currentBlunder.best_move);
+          const isBlunderMove = movesMatch(currentBlunder.fen_before, move.san, currentBlunder.actual_move);
+          
           if (isBestMove) {
             setBestMoveTargetSquare(targetSquare);
             setShowBestMoveFlash(true);
             // Reset flash after animation completes
             setTimeout(() => {
               setShowBestMoveFlash(false);
+            }, 1000); // Flash duration matches CSS animation
+          }
+          
+          if (isBlunderMove) {
+            setBlunderTargetSquare(targetSquare);
+            setShowBlunderFlash(true);
+            // Reset flash after animation completes
+            setTimeout(() => {
+              setShowBlunderFlash(false);
             }, 1000); // Flash duration matches CSS animation
           }
         }
@@ -165,39 +186,97 @@ export function BlunderBoard() {
   };
 
   // Highlight squares:
-  // - Before move: no highlights
+  // - Before move: show hint highlights if hint is active
   // - After move: highlight player's move (blue), best move (green), blunder move (red)
   const getCustomSquareStyles = () => {
     if (!currentBlunder) {
       return {};
     }
 
-    // Before a move: show no highlights
+    const styles: Record<string, React.CSSProperties> = {};
+
+    // Before a move: show hint highlights if hint is active
     if (!playerAttemptedMove) {
-      return {};
+      if (hintStep > 0) {
+        try {
+          const best = getMoveSquaresFromSan(currentBlunder.fen_before, currentBlunder.best_move);
+          if (best) {
+            // On first press (hintStep === 1), highlight from square
+            if (hintStep >= 1) {
+              styles[best.from] = {
+                backgroundColor: 'rgba(255, 255, 0, 0.6)', // Yellow highlight
+                boxShadow: 'inset 0 0 20px rgba(255, 255, 0, 0.8)',
+              };
+            }
+            // On second press (hintStep === 2), also highlight to square
+            if (hintStep >= 2) {
+              styles[best.to] = {
+                backgroundColor: 'rgba(255, 255, 0, 0.6)', // Yellow highlight
+                boxShadow: 'inset 0 0 20px rgba(255, 255, 0, 0.8)',
+              };
+            }
+          }
+        } catch {}
+      }
+      return styles;
     }
 
-    // Check if the move was correct (best move)
+    // Check if the move was correct (best move) or blunder
     const isBestMove = movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.best_move);
-    
-    const styles: Record<string, React.CSSProperties> = {};
+    const isBlunderMove = movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.actual_move);
     
     // If it's the best move, show green flash on target square (always show, regardless of settings)
     if (isBestMove && showBestMoveFlash && bestMoveTargetSquare) {
       styles[bestMoveTargetSquare] = {
         animation: 'bestMoveFlash 1s ease-out',
       };
+    }
+    
+    // If it's the blunder move, show red flash on target square (always show, regardless of settings)
+    if (isBlunderMove && showBlunderFlash && blunderTargetSquare) {
+      styles[blunderTargetSquare] = {
+        animation: 'blunderFlash 1s ease-out',
+      };
+    }
+    
+    // When player plays the best move: always show solution highlights (both best move and blunder)
+    if (isBestMove) {
+      // Best move (green)
+      try {
+        const best = getMoveSquaresFromSan(currentBlunder.fen_before, currentBlunder.best_move);
+        if (best) {
+          styles[best.from] = {
+            ...styles[best.from],
+            backgroundColor: 'rgba(100, 255, 100, 0.4)',
+          };
+          styles[best.to] = {
+            ...styles[best.to],
+            backgroundColor: 'rgba(100, 255, 100, 0.4)',
+          };
+        }
+      } catch {}
+
+      // Actual blunder move (red)
+      try {
+        const actual = getMoveSquaresFromSan(currentBlunder.fen_before, currentBlunder.actual_move);
+        if (actual) {
+          styles[actual.from] = {
+            ...styles[actual.from],
+            backgroundColor: 'rgba(255, 100, 100, 0.4)',
+          };
+          styles[actual.to] = {
+            ...styles[actual.to],
+            backgroundColor: 'rgba(255, 100, 100, 0.4)',
+          };
+        }
+      } catch {}
+      
       return styles;
     }
     
-    // If showBlunderAfterGame is disabled, don't show other highlights
+    // When showBlunderAfterGame is OFF and player didn't play best move: don't show highlights
     if (!showBlunderAfterGame) {
-      return {};
-    }
-    
-    // Only show highlights if the move wasn't correct
-    if (isBestMove) {
-      return {};
+      return styles;
     }
 
     // Attempted move (blue)
@@ -362,42 +441,79 @@ export function BlunderBoard() {
 
   return (
     <div className="blunder-board-container">
-      {/* Turn indicator / Outcome indicator */}
-      {indicatorContent && (
-        <div className={indicatorContent.className} style={playerAttemptedMove ? { backgroundColor: indicatorContent.color, color: '#ffffff' } : {}}>
-          {indicatorContent.showIcon ? (
-            <span className="king-icon">{isWhiteToMove ? '♔' : '♚'}</span>
-          ) : (
+      {/* Turn indicator / Outcome indicator - always rendered to prevent layout shift */}
+      <div 
+        className={indicatorContent ? indicatorContent.className : 'turn-indicator'} 
+        style={indicatorContent && playerAttemptedMove ? { backgroundColor: indicatorContent.color, color: '#ffffff' } : {}}
+      >
+        {indicatorContent ? (
+          <>
+            {indicatorContent.showIcon ? (
+              <span className="king-icon">{isWhiteToMove ? '♔' : '♚'}</span>
+            ) : (
+              <span className="king-icon" style={{ visibility: 'hidden' }}>♔</span>
+            )}
+            <span className="turn-text">{indicatorContent.text}</span>
+          </>
+        ) : (
+          <>
             <span className="king-icon" style={{ visibility: 'hidden' }}>♔</span>
-          )}
-          <span className="turn-text">{indicatorContent.text}</span>
-        </div>
-      )}
-      <div className="board-with-eval">
-        {showEvalBarDuringGame && (
-          <EvalBar 
-            evaluation={currentEvaluation}
-            playerColor={playerColor}
-            bestMoveEvaluation={
-              (playerAttemptedMove ? showBlunderAfterGame : showBestBlunderDuringPlay)
-                ? (bestMoveEvaluation ?? undefined)
-                : undefined
-            }
-            blunderEvaluation={
-              (playerAttemptedMove ? showBlunderAfterGame : showBestBlunderDuringPlay)
-                ? (blunderEvaluation ?? undefined)
-                : undefined
-            }
-            playerMoveEvaluation={playerMoveEvaluation ?? undefined}
-            showIndicators={
-              playerAttemptedMove
-                ? (showIndicators && showBlunderAfterGame)
-                : showBestBlunderDuringPlay
-            }
-            isBestMove={currentBlunder && playerAttemptedMove ? movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.best_move) : false}
-            isBlunderMove={currentBlunder && playerAttemptedMove ? movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.actual_move) : false}
-          />
+            <span className="turn-text" style={{ visibility: 'hidden' }}>Placeholder</span>
+          </>
         )}
+      </div>
+      <div className="board-with-eval">
+        {(() => {
+          const isBestMove = currentBlunder && playerAttemptedMove ? movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.best_move) : false;
+          const isBlunderMove = currentBlunder && playerAttemptedMove ? movesMatch(currentBlunder.fen_before, playerAttemptedMove, currentBlunder.actual_move) : false;
+          
+          // Determine what indicators to show:
+          // - Before move: show if showBestBlunderDuringPlay is ON
+          // - After move with showBlunderAfterGame ON: show all (original behavior)
+          // - After move with showBlunderAfterGame OFF: always show blunder, show best move if player played correctly
+          let shouldShowBestMoveIndicator = false;
+          let shouldShowBlunderIndicator = false;
+          
+          if (!playerAttemptedMove) {
+            // Before move
+            shouldShowBestMoveIndicator = showBestBlunderDuringPlay;
+            shouldShowBlunderIndicator = showBestBlunderDuringPlay;
+          } else {
+            // After move
+            if (showBlunderAfterGame) {
+              // Original behavior: show all indicators
+              shouldShowBestMoveIndicator = true;
+              shouldShowBlunderIndicator = true;
+            } else {
+              // New behavior: always show blunder, show best move if player played correctly
+              shouldShowBlunderIndicator = true;
+              shouldShowBestMoveIndicator = isBestMove;
+            }
+          }
+          
+          return (
+            <EvalBar 
+              evaluation={currentEvaluation}
+              playerColor={playerColor}
+              bestMoveEvaluation={
+                shouldShowBestMoveIndicator ? (bestMoveEvaluation ?? undefined) : undefined
+              }
+              blunderEvaluation={
+                shouldShowBlunderIndicator ? (blunderEvaluation ?? undefined) : undefined
+              }
+              playerMoveEvaluation={playerMoveEvaluation ?? undefined}
+              showIndicators={
+                playerAttemptedMove
+                  ? (showIndicators && (showBlunderAfterGame || shouldShowBlunderIndicator || shouldShowBestMoveIndicator))
+                  : showBestBlunderDuringPlay
+              }
+              isBestMove={isBestMove}
+              isBlunderMove={isBlunderMove}
+              isWorseThanBlunder={indicatorContent?.type === 'worse_than_blunder'}
+              disabled={!showEvalBarDuringGame}
+            />
+          );
+        })()}
         <Chessboard
           position={game.fen()}
           onPieceDrop={onPieceDrop}

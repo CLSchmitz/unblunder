@@ -1,0 +1,76 @@
+{
+  "name": "unblunder",
+  "version": "1.0.0",
+  "description": "Chess blunder analyzer desktop application",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:build": "npm run build:frontend && electron-builder",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "build:backend": "cd backend && pip install -r requirements.txt",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.unblunder.app",
+    "productName": "Unblunder",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "backend/**/*",
+      "stockfish-windows-x86-64-avx2.exe",
+      "!backend/**/__pycache__/**/*",
+      "!backend/**/*.pyc",
+      "!backend/**/migrations/**/*",
+      "!backend/**/tests.py",
+      "!backend/**/test_*.py",
+      "!backend/**/unblunder_new/**/*",
+      "!backend/**/unblunder_new.egg-info/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Unblunder"
+    },
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/migrations/**",
+          "!**/tests.py",
+          "!**/test_*.py",
+          "!**/unblunder_new/**",
+          "!**/unblunder_new.egg-info/**"
+        ]
+      },
+      {
+        "from": "stockfish-windows-x86-64-avx2.exe",
+        "to": "stockfish-windows-x86-64-avx2.exe"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "cross-env": "^7.0.3"
+  }
+}
+

@@ -46,6 +46,14 @@ interface EvalBarProps {
    * Whether the player made the blunder move (makes red bar tall with glow)
    */
   isBlunderMove?: boolean;
+  /**
+   * Whether the player's move is worse than the blunder (makes player indicator deeper red)
+   */
+  isWorseThanBlunder?: boolean;
+  /**
+   * Whether the eval bar is disabled (greyed out but still visible)
+   */
+  disabled?: boolean;
 }
 
 /**
@@ -87,7 +95,9 @@ export function EvalBar({
   playerMoveEvaluation,
   showIndicators = false,
   isBestMove = false,
-  isBlunderMove = false
+  isBlunderMove = false,
+  isWorseThanBlunder = false,
+  disabled = false
 }: EvalBarProps) {
   const [hoveredIndicator, setHoveredIndicator] = useState<'best' | 'blunder' | 'player' | null>(null);
   const fillPercentage = evaluationToFillPercentage(evaluation);
@@ -117,7 +127,7 @@ export function EvalBar({
   
   return (
     <div className="eval-bar-container">
-      <div className="eval-bar">
+      <div className={`eval-bar ${disabled ? 'eval-bar-disabled' : ''}`}>
         {/* Opponent color (top) */}
         <div 
           className="eval-bar-fill eval-bar-opponent"
@@ -185,7 +195,7 @@ export function EvalBar({
             {/* Blue bar for player's custom move eval - only show if not best or blunder */}
             {playerMovePosition !== undefined && !isBestMove && !isBlunderMove && (
               <div
-                className="eval-indicator eval-indicator-player"
+                className={`eval-indicator eval-indicator-player ${isWorseThanBlunder ? 'eval-indicator-worse-than-blunder' : ''}`}
                 style={{
                   top: `${playerMovePosition}%`,
                 }}
@@ -193,7 +203,7 @@ export function EvalBar({
                 onMouseLeave={() => setHoveredIndicator(null)}
               >
                 {hoveredIndicator === 'player' && (
-                  <div className="eval-tooltip eval-tooltip-player">
+                  <div className={`eval-tooltip eval-tooltip-player ${isWorseThanBlunder ? 'eval-tooltip-worse-than-blunder' : ''}`}>
                     <div className="eval-tooltip-label">Your Move</div>
                     <div className="eval-tooltip-value">
                       {formatEvaluation(playerMoveEvaluation)}

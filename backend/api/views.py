@@ -22,27 +22,43 @@ from services.stockfish import StockfishService
 logger = logging.getLogger(__name__)
 
 
-def _stream_analysis(games, username, blunder_params, request):
+def _stream_analysis(games_generator, username, blunder_params, max_games, request):
     """
     Generator function that yields Server-Sent Events for streaming analysis results.
+    Accepts a generator of games that will be fetched and analyzed as they're found.
     """
     # Store username in request for opponent calculation
     request.username = username
     
     try:
+        logger.info("Starting streaming analysis pipeline")
         # Send initial progress
-        yield f"data: {json.dumps({'type': 'progress', 'games_analyzed': 0, 'total_games': len(games)})}\n\n"
+        yield f"data: {json.dumps({'type': 'progress', 'games_discovered': 0, 'games_analyzed': 0, 'max_games': max_games})}\n\n"
         
-        # Stream analysis results
-        for event_type, data in analyze_games_batch_streaming(games, username, blunder_params):
+        # Stream analysis results - games are fetched and analyzed as they're found
+        games_found = False
+        logger.info("Entering analysis stream loop - games will be fetched and analyzed as they're found")
+        for event_type, data in analyze_games_batch_streaming(games_generator, username, blunder_params, max_games):
             if event_type == 'progress':
-                yield f"data: {json.dumps({'type': 'progress', 'games_analyzed': data['games_analyzed'], 'total_games': data['total_games']})}\n\n"
+                games_found = True
+                games_discovered = data.get('games_discovered', 0)
+                games_analyzed = data.get('games_analyzed', 0)
+                logger.info(f"Progress update: {games_discovered} games discovered, {games_analyzed} games analyzed (max: {max_games})")
+                yield f"data: {json.dumps({'type': 'progress', 'games_discovered': games_discovered, 'games_analyzed': games_analyzed, 'max_games': max_games})}\n\n"
             elif event_type == 'blunder':
                 # Serialize the blunder
+                logger.info(f"Yielding blunder {data.id} from game {data.game.id} to client")
                 blunder_serializer = BlunderSerializer(data, context={'request': request})
                 yield f"data: {json.dumps({'type': 'blunder', 'blunder': blunder_serializer.data})}\n\n"
         
+        # Check if no games were found
+        if not games_found:
+            logger.warning("No games found for username - streaming completed with no games")
+            yield f"data: {json.dumps({'type': 'error', 'error': 'No games found for this username'})}\n\n"
+            return
+        
         # Send completion message
+        logger.info("Streaming analysis pipeline completed successfully")
         yield f"data: {json.dumps({'type': 'complete'})}\n\n"
     except Exception as e:
         error_traceback = traceback.format_exc()
@@ -75,8 +91,10 @@ def analyze_stream(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     username = serializer.validated_data['username']
+    max_games = serializer.validated_data.get('max_games', 50)
     blunder_params = serializer.validated_data.get('blunder_params', {})
     logger.info(f"Validated username: {username}")
+    logger.info(f"Validated max_games: {max_games}")
     logger.info(f"Validated blunder_params: {blunder_params}")
     
     # Set defaults
@@ -90,31 +108,20 @@ def analyze_stream(request):
     logger.info(f"Final blunder_params: {blunder_params}")
     
     try:
-        # Fetch games
+        # Get game generator (games will be fetched and analyzed as they're found)
         logger.info("-" * 80)
-        logger.info("STEP 1: Fetching games from chess.com")
-        logger.info(f"Fetching games for username: {username}, limit: 20")
-        games = fetch_user_games(username, limit=20)
-        logger.info(f"Successfully fetched {len(games)} games")
-        
-        if not games:
-            logger.warning("No games found for username")
-            return Response(
-                {'error': 'No games found for this username'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Sort games by most recent first (played_at descending)
-        games = sorted(games, key=lambda g: g.played_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-        logger.info(f"Games sorted by most recent first: {[g.id for g in games]}")
+        logger.info("STEP 1: Starting game fetch and analysis pipeline")
+        logger.info(f"Fetching games for username: {username}, limit: {max_games}")
+        games_generator = fetch_user_games(username, limit=max_games)
+        logger.info("Game generator created - games will be fetched and analyzed as they're found")
         
         logger.info("-" * 80)
         logger.info("STEP 2: Starting streaming analysis")
-        logger.info(f"Analyzing {len(games)} games with params: {blunder_params}")
+        logger.info("Analysis will start as soon as first game is found")
         
-        # Return streaming response
+        # Return streaming response - pass generator directly
         response = StreamingHttpResponse(
-            _stream_analysis(games, username, blunder_params, request),
+            _stream_analysis(games_generator, username, blunder_params, max_games, request),
             content_type='text/event-stream'
         )
         response['Cache-Control'] = 'no-cache'

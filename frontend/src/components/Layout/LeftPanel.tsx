@@ -14,16 +14,9 @@ export function LeftPanel() {
     setAnalysisProgress,
     analysisProgress,
     isAnalyzing,
-    showEvalBarDuringGame,
-    showEvaluationsPaneDuringGame,
-    showBlunderAfterGame,
-    showBestBlunderDuringPlay,
-    setShowEvalBarDuringGame,
-    setShowEvaluationsPaneDuringGame,
-    setShowBlunderAfterGame,
-    setShowBestBlunderDuringPlay,
   } = useAppState();
   const [inputUsername, setInputUsername] = useState('');
+  const [maxGames, setMaxGames] = useState(50);
 
   const handleFindBlunders = async () => {
     if (!inputUsername.trim()) {
@@ -34,20 +27,21 @@ export function LeftPanel() {
     setAnalyzing(true);
     setAnalysisError(null);
     setBlunders([]); // Clear previous blunders
-    setAnalysisProgress(null); // Reset progress
+    setAnalysisProgress({ gamesDiscovered: 0, gamesAnalyzed: 0, maxGames }); // Initialize progress
 
     try {
       await api.analyzeStream(
         {
           username: inputUsername.trim(),
+          max_games: maxGames,
           blunder_params: {
             min_eval_delta: 200,
             depth: 15,
           },
         },
         {
-          onProgress: (gamesAnalyzed, totalGames) => {
-            setAnalysisProgress({ gamesAnalyzed, totalGames });
+          onProgress: (gamesDiscovered, gamesAnalyzed, maxGames) => {
+            setAnalysisProgress({ gamesDiscovered, gamesAnalyzed, maxGames });
           },
           onBlunder: (blunder) => {
             appendBlunder(blunder);
@@ -100,6 +94,19 @@ export function LeftPanel() {
         />
       </div>
 
+      <div className="input-group">
+        <label htmlFor="maxGames">Max Games</label>
+        <input
+          id="maxGames"
+          type="number"
+          min="1"
+          max="200"
+          value={maxGames}
+          onChange={(e) => setMaxGames(Math.max(1, Math.min(200, parseInt(e.target.value) || 50)))}
+          disabled={isAnalyzing}
+        />
+      </div>
+
       <div style={{ display: 'flex', gap: '8px' }}>
         <button
           className="button button-primary"
@@ -118,34 +125,58 @@ export function LeftPanel() {
         </button>
       </div>
 
-      {isAnalyzing && analysisProgress && (
-        <div style={{ marginTop: '12px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            marginBottom: '4px',
-            fontSize: '12px',
-            color: '#666'
-          }}>
-            <span>Analyzing games...</span>
-            <span>{analysisProgress.gamesAnalyzed} / {analysisProgress.totalGames}</span>
-          </div>
-          <div style={{
-            width: '100%',
-            height: '8px',
-            backgroundColor: '#e0e0e0',
-            borderRadius: '4px',
-            overflow: 'hidden'
-          }}>
+      <div style={{ marginTop: '12px' }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          marginBottom: '4px',
+          fontSize: '12px',
+          color: '#666'
+        }}>
+          <span>{isAnalyzing ? 'Finding and analyzing games...' : 'Ready'}</span>
+          <span>
+            {analysisProgress 
+              ? `${analysisProgress.gamesAnalyzed} / ${analysisProgress.maxGames}`
+              : '- / -'
+            }
+          </span>
+        </div>
+        <div style={{
+          width: '100%',
+          height: '8px',
+          backgroundColor: '#666',
+          borderRadius: '4px',
+          overflow: 'hidden',
+          position: 'relative'
+        }}>
+          {/* White bar for discovered games */}
+          {analysisProgress && (
             <div style={{
-              width: `${(analysisProgress.gamesAnalyzed / analysisProgress.totalGames) * 100}%`,
+              width: `${(analysisProgress.gamesDiscovered / analysisProgress.maxGames) * 100}%`,
+              height: '100%',
+              backgroundColor: '#fff',
+              transition: 'width 0.3s ease',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              zIndex: 1
+            }} />
+          )}
+          {/* Green bar for analyzed games */}
+          {analysisProgress && analysisProgress.gamesAnalyzed > 0 && (
+            <div style={{
+              width: `${(analysisProgress.gamesAnalyzed / analysisProgress.maxGames) * 100}%`,
               height: '100%',
               backgroundColor: '#4CAF50',
-              transition: 'width 0.3s ease'
+              transition: 'width 0.3s ease',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              zIndex: 2
             }} />
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="filter-section filter-disabled">
         <h3>Filters (Coming Soon)</h3>
@@ -168,54 +199,6 @@ export function LeftPanel() {
         <div className="input-group">
           <label>Min Eval Delta</label>
           <input type="number" disabled value="200" />
-        </div>
-      </div>
-
-      <div className="filter-section settings-section">
-        <h3>Settings</h3>
-        <div className="settings-item">
-          <label className="settings-label">
-            <span>Show Eval Bar</span>
-            <input
-              type="checkbox"
-              checked={showEvalBarDuringGame}
-              onChange={(e) => setShowEvalBarDuringGame(e.target.checked)}
-              className="settings-toggle"
-            />
-          </label>
-        </div>
-        <div className="settings-item">
-          <label className="settings-label">
-            <span>Show Eval Pane</span>
-            <input
-              type="checkbox"
-              checked={showEvaluationsPaneDuringGame}
-              onChange={(e) => setShowEvaluationsPaneDuringGame(e.target.checked)}
-              className="settings-toggle"
-            />
-          </label>
-        </div>
-        <div className="settings-item">
-          <label className="settings-label">
-            <span>Show Solution After Every Move</span>
-            <input
-              type="checkbox"
-              checked={showBlunderAfterGame}
-              onChange={(e) => setShowBlunderAfterGame(e.target.checked)}
-              className="settings-toggle"
-            />
-          </label>
-        </div>
-        <div className="settings-item">
-          <label className="settings-label">
-            <span>Show Best Move/Blunder During Play</span>
-            <input
-              type="checkbox"
-              checked={showBestBlunderDuringPlay}
-              onChange={(e) => setShowBestBlunderDuringPlay(e.target.checked)}
-              className="settings-toggle"
-            />
-          </label>
         </div>
       </div>
     </div>

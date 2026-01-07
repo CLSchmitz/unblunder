@@ -1,0 +1,202 @@
+.move-info-box {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background-color: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #e0e0e0;
+}
+
+.move-info-empty {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+}
+
+/* Players Section with Scores */
+.move-info-players {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  margin-bottom: 20px;
+  gap: 8px;
+}
+
+/* Player container with border */
+.move-info-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 140px;
+  min-width: 140px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 2px solid;
+  transition: border-color 0.2s;
+}
+
+/* White player box - always white background with black text to indicate white player */
+.move-info-player-white {
+  background-color: #ffffff;
+}
+
+/* Default text color for white box (for ELO and when no border class) */
+.move-info-player-white .move-info-player-elo {
+  color: #000000;
+}
+
+/* Score Value - Large like sports score */
+.move-info-score-value {
+  font-size: 48px;
+  font-weight: bold;
+  color: #e0e0e0;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+/* Score value and player name use border color */
+.move-info-score-value.border-win,
+.move-info-player-name.border-win {
+  color: #4CAF50; /* Green for win */
+}
+
+.move-info-score-value.border-loss,
+.move-info-player-name.border-loss {
+  color: #f44336; /* Red for loss */
+}
+
+.move-info-score-value.border-draw,
+.move-info-player-name.border-draw {
+  color: #ffffff; /* White for draw */
+}
+
+/* Override for white box - status number and name match border color */
+.move-info-player-white .move-info-score-value.border-win,
+.move-info-player-white .move-info-player-name.border-win {
+  color: #4CAF50; /* Green for win */
+}
+
+.move-info-player-white .move-info-score-value.border-loss,
+.move-info-player-white .move-info-player-name.border-loss {
+  color: #f44336; /* Red for loss */
+}
+
+.move-info-player-white .move-info-score-value.border-draw,
+.move-info-player-white .move-info-player-name.border-draw {
+  color: #000000; /* Black for draw (white border on white background needs black text) */
+}
+
+/* Score Separator */
+.move-info-score-separator {
+  font-size: 48px;
+  font-weight: bold;
+  color: #e0e0e0;
+  line-height: 1;
+  margin: 0 4px;
+  display: flex;
+  align-items: center;
+}
+
+.move-info-player.border-win {
+  border-color: #4CAF50; /* Green for win */
+}
+
+.move-info-player.border-loss {
+  border-color: #f44336; /* Red for loss */
+}
+
+.move-info-player.border-draw {
+  border-color: #ffffff; /* White for draw */
+}
+
+.move-info-player-name {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.move-info-player-elo {
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Game Details Wrapper - Centers the pane */
+.move-info-game-details-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+/* Game Details Pane - Fit content width */
+.move-info-game-details {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  gap: 12px;
+  width: fit-content;
+  box-sizing: border-box;
+}
+
+.move-info-game-emoji {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.move-info-game-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.move-info-date {
+  font-size: 12px;
+  color: #333;
+  font-weight: 500;
+  text-align: center;
+}
+
+.move-info-move-number {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}
+
+/* Game Link Button */
+.game-link-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  background-color: #3a3a3a;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  text-decoration: none;
+  font-size: 18px;
+  transition: background-color 0.2s, border-color 0.2s;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.game-link-button:hover {
+  background-color: #4a4a4a;
+  border-color: #5a5a5a;
+  color: #ffffff;
+}
+

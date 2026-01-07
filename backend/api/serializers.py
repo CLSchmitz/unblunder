@@ -43,6 +43,7 @@ class PlayerAttemptSerializer(serializers.ModelSerializer):
 
 class AnalysisRequestSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=255)
+    max_games = serializers.IntegerField(required=False, default=50, min_value=1, max_value=200)
     blunder_params = serializers.DictField(required=False, default=dict)
 
 

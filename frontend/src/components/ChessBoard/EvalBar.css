@@ -23,6 +23,19 @@
   flex-shrink: 0;
 }
 
+.eval-bar-disabled {
+  background-color: #555555 !important;
+  pointer-events: none;
+}
+
+.eval-bar-disabled .eval-bar-fill {
+  display: none;
+}
+
+.eval-bar-disabled .eval-indicator {
+  display: none;
+}
+
 .eval-bar-fill {
   width: 100%;
   transition: height 0.3s ease;
@@ -80,7 +93,24 @@
 
 .eval-indicator-player {
   background-color: #4682B4; /* Steel blue */
-  box-shadow: 0 0 6px rgba(70, 130, 180, 0.8);
+  height: 10px !important;
+  z-index: 15 !important;
+  box-shadow: 
+    0 0 8px rgba(70, 130, 180, 1),
+    0 0 16px rgba(70, 130, 180, 0.9),
+    0 0 24px rgba(70, 130, 180, 0.8),
+    0 0 32px rgba(70, 130, 180, 0.6),
+    0 0 40px rgba(70, 130, 180, 0.4);
+}
+
+.eval-indicator-player.eval-indicator-worse-than-blunder {
+  background-color: #b71c1c; /* Deeper red */
+  box-shadow: 
+    0 0 8px rgba(183, 28, 28, 1),
+    0 0 16px rgba(183, 28, 28, 0.9),
+    0 0 24px rgba(183, 28, 28, 0.8),
+    0 0 32px rgba(183, 28, 28, 0.6),
+    0 0 40px rgba(183, 28, 28, 0.4);
 }
 
 /* Highlighted indicator (when player made best or blunder move) */
@@ -165,6 +195,10 @@
 
 .eval-tooltip-player .eval-tooltip-value {
   color: #4682B4; /* Steel blue */
+}
+
+.eval-tooltip-worse-than-blunder .eval-tooltip-value {
+  color: #b71c1c; /* Deeper red */
 }
 
 .eval-tooltip-blunder .eval-tooltip-value {
